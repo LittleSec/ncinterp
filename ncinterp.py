@@ -7,6 +7,15 @@ import datetime
 import re
 import time
 
+# error:
+# dp.interpValue 的维度太大了，无法开辟那么大的空间！！
+
+'''
+备忘录：
+2018-02-02
+dataProcessor深度空列表操作有误提示！
+'''
+
 class NcFile:
 	def __init__(self, fileName, rootPath = r'/Users/littlesec/Desktop/毕业设计/caoweidongdata/'):
 		self.rootPath = rootPath
@@ -35,14 +44,14 @@ class NcFile:
 				missingValue(must float, if the file doesn't define, it will prompt user to input)
 		'''	
 		self.x, self.y = self.getLongiAndLati()
-		self.getObservedValue() # will get missing_value, too
+		self.observedValue = self.getObservedValue() # will get missing_value, too
 		self.dimension = len(self.f.dimensions) 
 		# f.dimensions不要用于获取某个维度的大小，
 		# nc文件在创建时很有可能在这里记录错误，例如sst1960-2017.nc这个文件的'T'维度大小是None
 		# 要想获得数据的数量，还是以实际数据的列表长度为准
-		self.timeListself.getTimeValue()
+		self.dateStrList = self.getTimeValue()
 		if(self.dimension == 4):
-			self.getDepthValue()
+			self.depthDataList = self.getDepthValue()
 		if np.isnan(self.missingValue):
 			print("There is no missing_value in this file: " + self.fileName)
 			print("The observed value: **max: {0}**, **min: {1}**".format(np.nanmax(self.observedValue), np.nanmin(self.observedValue)))
@@ -60,7 +69,6 @@ class NcFile:
 			return
 		x = []
 		y = []
-		# 直接用正则表达式匹配X,Y,lat,lon,latitude,longitude
 		for key in self.f.variables.keys():
 			if(len(x) != 0 and len(y) != 0):
 				break
@@ -120,70 +128,45 @@ class NcFile:
 				dateStringList.append(str(date.strftime('%Y-%m-%d')))
 		return dateStringList
 
-
 	def getDepthValue(self):
+		depthDataList = []
 		for key in self.f.variables.keys():
 			if key.lower() in ['depth', 'z']:
-				self.depthDataList = self.f.variables[key].data
+				depthDataList = self.f.variables[key].data
 				self.depthUnits = str(self.f.variables[key].units, encoding = 'utf-8')
 				break
-		
+		return depthDataList
+
 	def getObservedValue(self):
 		'''获取所有实际测量的值，默认属性名不用以下名字：['X', 'Y', 'Z', 'T', 'lat', 'lon', 'depth']'''
+		observedValue = []
 		for key in self.f.variables.keys():
 			if(key in ['T', 'X', 'Y', 'Z', 'lat', 'lon', 'time', 'depth']):
 				continue # 利用短路运算提高速度，保证for循环中有且仅有一次是遍历整个list
 			else:
 				var = self.f.variables[key]
-				self.observedValue = var.data.astype(float)
+				observedValue = var.data.astype(float)
 				self.missingValue = np.float(var.missing_value)
 				if('add_offset' in dir(var) and 'scale_factor' in dir(var)): # 源数据经过处理，例如sst2960-2017.nc
-					# 不可以self.observedValue *= 1，因为这只是个指向文件数据而已，而数据是只读的。
-					self.observedValue = var.data.astype(float) * var.scale_factor + var.add_offset
+					# 不可以observedValue *= 1，因为这只是个指向文件数据而已，而数据是只读的。
+					observedValue = var.data.astype(float) * var.scale_factor + var.add_offset
 					self.missingValue *= var.scale_factor 
 					self.missingValue += var.add_offset
 				break
+		return observedValue
 
-	def processAGroupData(self, dataInfo, timeIndex = 0, depthIndex = 0, minutes = 5):
-		'''这些nc文件的组织规律如下：
-		若是除了经纬度之外，还有时间和深度两个变量，则经纬度的索引分别是X,Y，而深度的索引是Z，时间的索引是T
-		若是除了经纬度之外，只有时间这个变量，则经纬度的索引分别是lon,lat，时间的索引是time
-		观测值的维度由外到内分别是：时间、深度（如果有的话）、经纬度'''
-		if(self.dimension == 4):
-			data = DataProcessor(self.x, self.y, self.observedValue[timeIndex][depthIndex], dataInfo)
-		else:
-			data = DataProcessor(self.x, self.y, self.observedValue[timeIndex], dataInfo)
-		data.setNaNValue(50)
-		data.setResolution(minutes = minutes)
-		data.setInterpFunc()
-		data.interpAGroupData()
-		data.writeInCSV()
-
-	def processAFileData(self, minutes = 5):
-		'''处理整个nc文件的数据，分三元和四元情况，默认只有这两种情况'''
-		self.getFileInfo()
-		dataInfo = {}
-		dataInfo['RootPath'] = self.rootPath
-		dataInfo['DirsName'] = self.fileName[:-3]
-		dataInfo['MissingValue'] = self.missingValue
-		if(self.dimension == 4):
-			for i in range(len(self.timeList)):
-				dataInfo['Time'] = self.timeList[i]
-				for j in range(len(self.depthDataList)):
-					dataInfo['Depth'] =  str(self.depthDataList[j]) + str(self.depthUnits)
-					self.processAGroupData(dataInfo, i, j, minutes)
-		else:
-			dataInfo['Depth'] = '' # 为了调用者代码重用
-			for i in range(len(self.timeList)):
-				dataInfo['Time'] = self.timeList[i]
-				self.processAGroupData(dataInfo, i, 0, minutes)
 
 class DataSelector:
-	def __init__(self, dateStringList, depthList):
-		self.startDate = dateStringList[0]# '1960-02-16' # 
-		self.endDate = dateStringList[len(dateStringList)-1]# '2008-06-17' # 
+	def __init__(self, dateStringList, depthList=None):
 		self.dateStringList = dateStringList # ['1960-02-16', '1960-03-16', '1960-04-16', '1961-05-16', '1970-06-16', '2001-07-16', '2008-06-16']
+		self.startDate = dateStringList[0]# '1960-02-16' # 
+		self.endDate = dateStringList[-1]# '2008-06-16'
 		self.depthList = depthList # [1, 2.3, 3.45, 4.567, 5.65, 6.3, 7]
+		self.timeSelectList = range(len(dateStringList))
+		if depthList is None:
+			self.depthSelectList = range(0)
+		else:
+			self.depthSelectList = range(len(depthList))
 
 	def __indexOfTime(self, timeStr):
 		'''
@@ -257,7 +240,8 @@ class DataSelector:
 		if index1 > index2:
 			index1, index2 = index2, index1
 
-		return list(range(index1, index2 + 1))
+		# return list(range(index1, index2 + 1)) # for test
+		self.timeSelectList = range(index1, index2 + 1)
 
 	def __indexOfDepth(self, num, depthList=None):
 		'''
@@ -288,9 +272,13 @@ class DataSelector:
 
 	def selectByDepth(self, depthStr):
 		'''
+		Have hard code.
 		param:
 			depthStr can be: "num(+)", "num1-num2"(num1 < num2) and "num-"
 		'''
+		if self.depthList is None:
+			print("No depth in this file!")
+			return
 		strSplitList = depthStr.split('-')
 		numPattern = '-?(([1-9]\d*\.\d*|0?\.\d*[1-9]\d*|0?\.0+|0)|([1-9]\d*))'
 		numRegex = re.compile(numPattern)
@@ -314,62 +302,177 @@ class DataSelector:
 		if index1 > index2:
 			index1, index2 = index2, index1
 
-		return list(range(index1, index2 + 1))
+		# return list(range(index1, index2 + 1)) # for test
+		self.depthSelectList = range(index1, index2 + 1)
 
 	def selectByTimeAndDepth(self, time, depth):
 		pass
 
+
 class DataProcessor:
-	def __init__(self, x, y, z, dataInfo):
-		self.dataInfo = dataInfo# 记录该组数据对应时间和深度等信息
-		self.x = x # 源经度
-		self.y = y # 源纬度
-		self.z = z # 源数据值
-		self.NaNValue = dataInfo['MissingValue'] # 缺失值的替代值
+	def __init__(self, file):
+		self.x = file.x # 源经度
+		self.y = file.y # 源纬度
+		self.observedValue = file.observedValue # 源数据值
+		self.interpValue = self.observedValue # set all element to nan
+		self.dimension = file.dimension
+		dataInfo = {}
+		dataInfo["RootPath"] = file.rootPath
+		dataInfo["DirsName"] = file.fileName[:-3]
+		self.dateStringList = file.dateStrList
+		dataInfo["TimeList"] = file.dateStrList
+		dataInfo["TimeRange"] = range(len(self.dateStringList))
+		if self.dimension == 4:
+			self.depthList = file.depthDataList
+			dataInfo["DepthList"] = file.depthDataList
+			dataInfo["DepthRange"] = range(len(self.depthList))
+		self.dataInfo = dataInfo
+		self.NaNValue = file.missingValue
 		self.xi = self.x # 提高密度后的经度序列
 		self.yi = self.y
 		self.interpFunc = None
-		self.zi = self.z # 提高密度插值后数据值
 
 	def setNaNValue(self, NaNReplaceValue = None):
 		'''循环遍历设置缺失值，以方便全数据参与插值运算'''
-		
-		'''输入缺失值的工作还是交付给上层做吧。
-		if np.isnan(NaNReplaceValue):
-			NaNReplaceValue = eval(input("Please input a value to replace the NaN: "))
-		'''
 		if NaNReplaceValue is None:
 			NaNReplaceValue = self.NaNValue
-		for i in range(self.z.shape[0]):
-			for j in range(self.z.shape[1]):
-				if np.isnan(self.z[i][j]) or self.z[i][j] == self.NaNValue:
-					self.z[i][j] = NaNReplaceValue	
+		self.observedValue[np.isnan(self.observedValue)] = NaNReplaceValue
+		self.observedValue[self.observedValue == self.NaNValue] = NaNReplaceValue
 
-	def setResolution(self, min_x = 117.5, max_x = 129.5, min_y = 24.5, max_y = 36.5, minutes = 5):
-		'''设置分辨率，minutes指多少分就有一个数据'''
+	def setResolution(self, minutes = 1):
+		'''设置分辨率，minutes指多少分就有一个数据，返回新的经纬度序列'''
 		numOfSectionsInOneDegree = 60 // minutes
-		# max_x = np.max(self.x)#
+		min_x = np.min(self.x)
+		max_x = np.max(self.x)
+		min_y = np.min(self.y)
+		max_y = np.max(self.y)
 		n_x = complex(0, (max_x - min_x) * numOfSectionsInOneDegree + 1)
 		n_y = complex(0, (max_y - min_y) * numOfSectionsInOneDegree + 1)
-		self.xi = np.ogrid[min_x:max_x:n_x]
-		self.yi = np.ogrid[min_y:max_y:n_y]
+		xi = np.ogrid[min_x:max_x:n_x]
+		yi = np.ogrid[min_y:max_y:n_y]
+		timeLen = len(self.dateStringList)
+		if self.dimension == 3:
+			self.interpValue = np.full((timeLen, len(xi), len(yi)), np.nan)
+		elif self.dimension == 4:
+			depthLen = self.depthList.size
+			self.interpValue = np.full((timeLen, depthLen, len(xi), len(yi)), np.nan)
+		
+		return xi, yi
 
-	def setInterpFunc(self):
+	def __setInterpFunc(self, z):
 		'''计算插值函数（二元三次样条插值）'''
-		self.interpFunc = interpolate.interp2d(self.x, self.y, self.z, kind='cubic')
+		self.interpFunc = interpolate.interp2d(self.x, self.y, z, kind='cubic')
 
-	def interpAGroupData(self):
-		self.zi = self.interpFunc(self.xi, self.yi)
+	def __interpAGroupData(self):
+		return self.interpFunc(self.xi, self.yi)
 
-	def writeInCSV(self, dataInfo = None):
-		if dataInfo is None:
-			dataInfo = self.dataInfo
-		os.chdir(dataInfo["RootPath"]) 
-		if not os.path.exists(dataInfo["DirsName"]):
-			os.makedirs(dataInfo["DirsName"])
-		os.chdir(r'%s' % dataInfo["DirsName"])
-		fileName = r'{0}, {1}, ({2}x{3}).csv'.format(dataInfo['Time'], dataInfo['Depth'], self.zi.shape[0], self.zi.shape[1])
-		pd.DataFrame(self.zi, columns=self.xi, index=self.yi).to_csv(fileName)
+	def __processAGroupData(self, timeIndex=0, depthIndex=0, minutes=1, nanValue=None):
+		'''这些nc文件的组织规律如下：
+		z[time]([depth]if have)[x][y]
+		'''
+		if nanValue is not None:
+			self.setNaNValue(nanValue)
+		self.xi, self.yi = self.setResolution(minutes = minutes)
+		print("hjx")
+		if self.dimension == 4:
+			z = self.observedValue[timeIndex][depthIndex]
+			self.__setInterpFunc(z)
+			self.interpValue[timeIndex][depthIndex] = self.__interpAGroupData()
+		elif self.dimension == 3:
+			z = self.observedValue[timeIndex]
+			self.__setInterpFunc(z)
+			self.interpValue[timeIndex] = self.__interpAGroupData()
+
+	def processAFileData(self, minutes=1, nanValue=None):
+		'''
+		ds = DataSelector([''], [''])
+		ds.timeSelectList = range(len(self.dateStringList))
+		ds.depthSelectList = range(len(self.depthList))
+		'''
+		self.processARangeData(ds=None, minutes=minutes, nanValue=nanValue)
+
+	def processARangeData(self, ds, minutes=1, nanValue=None, csvForm='grid'):
+		if ds is None:
+			ds = DataSelector([''], [''])
+			ds.timeSelectList = self.dataInfo["TimeRange"]
+			if self.dimension == 4:
+				ds.depthSelectList = self.dataInfo["DepthRange"]
+		if self.dimension == 4:
+			for i in ds.timeSelectList:
+				for j in ds.depthSelectList:
+					self.__processAGroupData(timeIndex=i, depthIndex=j, minutes=minutes, nanValue=nanValue)
+		elif self.dimension == 3:
+			for i in ds.timeSelectList:
+				self.__processAGroupData(timeIndex=i, depthIndex=0, minutes=minutes, nanValue=nanValue)
+
+		if csvForm.lower() == 'tuple':
+			writeInCSVWithTuple(self.xi, self.yi, self.interpValue, self.dataInfo)
+		else:
+			writeInCSVWithGrid(self.xi, self.yi, self.interpValue, self.dataInfo)
+
+
+def writeInCSVWithGrid(xi, yi, value, dataInfo):
+	'''
+	The situation of same time(and same depth) just has a csv file.
+	Format of directory: nc file name + '_grid_' + resolution(how many lats x how many lons),
+		e.g. 'relative humidity1960-2017_grid_(13x13)'
+	Format of csv file name: timeStr(+ depth with units)
+		e.g. '1960-01-16'
+		e.g. '1960-01-16,200m' 
+	The units of depth is 'm' by default
+	'''
+	os.chdir(dataInfo["RootPath"]) 
+	dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
+	if not os.path.exists(dirsName):
+		os.makedirs(dirsName)
+	os.chdir(r'%s' % dirsName)
+	if "DepthList" in dataInfo:
+		for i in dataInfo["TimeRange"]:
+			for j in dataInfo["DepthRange"]:
+				fileName = r'{0}, {1}m.csv'.format(dataInfo['TimeList'][i], dataInfo['DepthList'][j])
+				pd.DataFrame(value[i][j], columns=xi, index=yi).to_csv(fileName)
+	else:
+		for i in dataInfo["TimeRange"]:
+			fileName = r'{0}.csv'.format(dataInfo['TimeList'][i])
+			pd.DataFrame(value[i], columns=xi, index=yi).to_csv(fileName)
+	
+def writeInCSVWithTuple(xi, yi, value, dataInfo):
+	'''
+	The situation of same nc file and same resolution has the same one csv file.
+	Format of directory: nc file name + '_tuple'
+		e.g. 'relative humidity1960-2017_tuple'
+	Format of csv file name: time(+ depth range) + resolution(how many lats x how many lons)
+		e.g. '1960-01-16,5m-200m,(13x13).csv'
+	'''
+	os.chdir(dataInfo["RootPath"]) 
+	dirsName = r"%s_tuple" % dataInfo["DirsName"]
+	if not os.path.exists(dirsName):
+		os.makedirs(dirsName)
+	os.chdir(r'%s' % dirsName)
+	head = ['log', 'lat']
+	x, y = np.meshgrid(xi, yi)
+	point = np.rec.fromarrays([x,y])
+	for i in dataInfo["TimeRange"]:
+		if "DepthList" in dataInfo:
+			fileName = r'{0},{1}m-{2}m,({3}x{4}).csv'.format(
+				dataInfo["TimeList"][i], 
+				dataInfo["DepthList"][dataInfo["DepthRange"][0]], 
+				dataInfo["DepthList"][dataInfo["DepthRange"][-1]], 
+				value.shape[-2], value.shape[-1])
+			header = head + [str(dataInfo["DepthList"][d])+'m' for d in dataInfo["DepthRange"]]
+			dt1 = pd.DataFrame(point.ravel())
+			for j in dataInfo["DepthRange"]:
+				dt2 = pd.DataFrame(value[i][j].ravel())
+				dt1 = pd.concat([dt1, dt2], axis=1)
+			dt1.to_csv(fileName, index=False, header=header)
+		else:
+			fileName = r'{0},({1}x{2}).csv'.format(
+				dataInfo["TimeList"][i], value.shape[-2], value.shape[-1])
+			header = head + ["no depth"]
+			dt1 = pd.DataFrame(point.ravel())
+			dt2 = pd.DataFrame(value[i].ravel())
+			pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header)
+	# 读：csv = np.genfromtxt('some.csv',delimiter=",")[1:,:]
 
 if __name__ == '__main__':
 	'''
