@@ -2,18 +2,21 @@ import os
 import numpy as np
 import pandas as pd
 from scipy.io import netcdf
-from scipy import interpolate 
-import datetime
+from scipy import interpolate
 import re
+import datetime
 import time
-
-# error:
-# dp.interpValue 的维度太大了，无法开辟那么大的空间！！
 
 '''
 备忘录：
 2018-02-02
-dataProcessor深度空列表操作有误提示！
+dataProcessor深度空列表操作最好有误提示！
+2018-02-08
+考虑一下从有深度切换到无深度是否需要清空与深度相关的code，因为部分func会通过dataInfo的键进行判断
+2018-02-09
+处理文件函数还是放回文件类比较合适
+2018-02-11
+调整写文件参数，加入指定文件名模块，方便调试
 '''
 
 class NcFile:
@@ -154,7 +157,6 @@ class NcFile:
 					self.missingValue += var.add_offset
 				break
 		return observedValue
-
 
 class DataSelector:
 	def __init__(self, dateStringList, depthList=None):
@@ -308,25 +310,21 @@ class DataSelector:
 	def selectByTimeAndDepth(self, time, depth):
 		pass
 
-
 class DataProcessor:
 	def __init__(self, file):
 		self.x = file.x # 源经度
 		self.y = file.y # 源纬度
 		self.observedValue = file.observedValue # 源数据值
-		self.interpValue = self.observedValue # set all element to nan
 		self.dimension = file.dimension
 		dataInfo = {}
 		dataInfo["RootPath"] = file.rootPath
 		dataInfo["DirsName"] = file.fileName[:-3]
+		self.dataInfo = dataInfo
 		self.dateStringList = file.dateStrList
-		dataInfo["TimeList"] = file.dateStrList
-		dataInfo["TimeRange"] = range(len(self.dateStringList))
 		if self.dimension == 4:
 			self.depthList = file.depthDataList
-			dataInfo["DepthList"] = file.depthDataList
-			dataInfo["DepthRange"] = range(len(self.depthList))
-		self.dataInfo = dataInfo
+		else:
+			self.depthList = []
 		self.NaNValue = file.missingValue
 		self.xi = self.x # 提高密度后的经度序列
 		self.yi = self.y
@@ -350,13 +348,6 @@ class DataProcessor:
 		n_y = complex(0, (max_y - min_y) * numOfSectionsInOneDegree + 1)
 		xi = np.ogrid[min_x:max_x:n_x]
 		yi = np.ogrid[min_y:max_y:n_y]
-		timeLen = len(self.dateStringList)
-		if self.dimension == 3:
-			self.interpValue = np.full((timeLen, len(xi), len(yi)), np.nan)
-		elif self.dimension == 4:
-			depthLen = self.depthList.size
-			self.interpValue = np.full((timeLen, depthLen, len(xi), len(yi)), np.nan)
-		
 		return xi, yi
 
 	def __setInterpFunc(self, z):
@@ -366,50 +357,46 @@ class DataProcessor:
 	def __interpAGroupData(self):
 		return self.interpFunc(self.xi, self.yi)
 
-	def __processAGroupData(self, timeIndex=0, depthIndex=0, minutes=1, nanValue=None):
+	def __processAGroupData(self, timeIndex=0, depthIndex=0, minutes=1, nanValue=None, csvForm='grid'):
 		'''这些nc文件的组织规律如下：
 		z[time]([depth]if have)[x][y]
 		'''
 		if nanValue is not None:
 			self.setNaNValue(nanValue)
 		self.xi, self.yi = self.setResolution(minutes = minutes)
-		print("hjx")
 		if self.dimension == 4:
 			z = self.observedValue[timeIndex][depthIndex]
-			self.__setInterpFunc(z)
-			self.interpValue[timeIndex][depthIndex] = self.__interpAGroupData()
 		elif self.dimension == 3:
 			z = self.observedValue[timeIndex]
-			self.__setInterpFunc(z)
-			self.interpValue[timeIndex] = self.__interpAGroupData()
-
-	def processAFileData(self, minutes=1, nanValue=None):
-		'''
-		ds = DataSelector([''], [''])
-		ds.timeSelectList = range(len(self.dateStringList))
-		ds.depthSelectList = range(len(self.depthList))
-		'''
-		self.processARangeData(ds=None, minutes=minutes, nanValue=nanValue)
-
-	def processARangeData(self, ds, minutes=1, nanValue=None, csvForm='grid'):
-		if ds is None:
-			ds = DataSelector([''], [''])
-			ds.timeSelectList = self.dataInfo["TimeRange"]
-			if self.dimension == 4:
-				ds.depthSelectList = self.dataInfo["DepthRange"]
-		if self.dimension == 4:
-			for i in ds.timeSelectList:
-				for j in ds.depthSelectList:
-					self.__processAGroupData(timeIndex=i, depthIndex=j, minutes=minutes, nanValue=nanValue)
-		elif self.dimension == 3:
-			for i in ds.timeSelectList:
-				self.__processAGroupData(timeIndex=i, depthIndex=0, minutes=minutes, nanValue=nanValue)
+		self.__setInterpFunc(z)
+		self.interpValue = self.__interpAGroupData()
 
 		if csvForm.lower() == 'tuple':
 			writeInCSVWithTuple(self.xi, self.yi, self.interpValue, self.dataInfo)
 		else:
 			writeInCSVWithGrid(self.xi, self.yi, self.interpValue, self.dataInfo)
 
+	def processAFileData(self, minutes=1, nanValue=None, csvForm='grid'):
+		'''
+		ds = DataSelector([''], [''])
+		ds.timeSelectList = range(len(self.dateStringList))
+		ds.depthSelectList = range(len(self.depthList))
+		'''
+		self.processARangeData(ds=None, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
+
+	def processARangeData(self, ds, minutes=1, nanValue=None, csvForm='grid'):
+		if ds is None:
+			ds = DataSelector(self.dateStringList, self.depthList)
+		if self.dimension == 4:
+			for i in ds.timeSelectList:
+				self.dataInfo["Time"] = self.dateStringList[i]
+				for j in ds.depthSelectList:
+					self.dataInfo["Depth"] = self.depthList[j]
+					self.__processAGroupData(timeIndex=i, depthIndex=j, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
+		elif self.dimension == 3:
+			for i in ds.timeSelectList:
+				self.dataInfo["Time"] = self.dateStringList[i]
+				self.__processAGroupData(timeIndex=i, depthIndex=0, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
 
 def writeInCSVWithGrid(xi, yi, value, dataInfo):
 	'''
@@ -421,20 +408,18 @@ def writeInCSVWithGrid(xi, yi, value, dataInfo):
 		e.g. '1960-01-16,200m' 
 	The units of depth is 'm' by default
 	'''
+	# dataInfo: RootPath, DirsName, Time(str), Depth(num)
 	os.chdir(dataInfo["RootPath"]) 
 	dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
 	if not os.path.exists(dirsName):
 		os.makedirs(dirsName)
 	os.chdir(r'%s' % dirsName)
-	if "DepthList" in dataInfo:
-		for i in dataInfo["TimeRange"]:
-			for j in dataInfo["DepthRange"]:
-				fileName = r'{0}, {1}m.csv'.format(dataInfo['TimeList'][i], dataInfo['DepthList'][j])
-				pd.DataFrame(value[i][j], columns=xi, index=yi).to_csv(fileName)
+	if "Depth" in dataInfo:
+		fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
+		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 	else:
-		for i in dataInfo["TimeRange"]:
-			fileName = r'{0}.csv'.format(dataInfo['TimeList'][i])
-			pd.DataFrame(value[i], columns=xi, index=yi).to_csv(fileName)
+		fileName = r'{0}.csv'.format(dataInfo['Time'])
+		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 	
 def writeInCSVWithTuple(xi, yi, value, dataInfo):
 	'''
@@ -449,31 +434,59 @@ def writeInCSVWithTuple(xi, yi, value, dataInfo):
 	if not os.path.exists(dirsName):
 		os.makedirs(dirsName)
 	os.chdir(r'%s' % dirsName)
-	head = ['log', 'lat']
-	x, y = np.meshgrid(xi, yi)
-	point = np.rec.fromarrays([x,y])
-	for i in dataInfo["TimeRange"]:
-		if "DepthList" in dataInfo:
-			fileName = r'{0},{1}m-{2}m,({3}x{4}).csv'.format(
-				dataInfo["TimeList"][i], 
-				dataInfo["DepthList"][dataInfo["DepthRange"][0]], 
-				dataInfo["DepthList"][dataInfo["DepthRange"][-1]], 
-				value.shape[-2], value.shape[-1])
-			header = head + [str(dataInfo["DepthList"][d])+'m' for d in dataInfo["DepthRange"]]
+	
+	if not "Depth" in dataInfo:
+		fileName = r'{0},({1}x{2}).csv'.format(
+				dataInfo["Time"], value.shape[-2], value.shape[-1])
+		header = ['log', 'lat', '']
+		x, y = np.meshgrid(xi, yi)
+		point = np.rec.fromarrays([x, y])
+		dt1 = pd.DataFrame(point.ravel())
+		dt2 = pd.DataFrame(value.ravel())
+		pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
+	else: # have depth
+		fileNamePattern = '{0}.*\({1}x{2}\)\.csv'.format(
+				dataInfo["Time"], value.shape[-2], value.shape[-1])
+		fileNameRegex = re.compile(fileNamePattern)
+		for fname in os.listdir(os.getcwd()):
+			if fileNameRegex.match(fname):
+				# read file
+				# 读：csv = np.genfromtxt('some.csv',delimiter=",")[1:,:]
+				csv = pd.read_csv(fname)
+				csvdepth = [eval(h[:-1]) for h in csv.columns[2:]] # at least have one item, and ascending
+				# insert or update
+				for i in range(len(csvdepth)):
+					if round(dataInfo["Depth"], 2) > csvdepth[i]:
+						continue
+					elif round(dataInfo["Depth"], 2) < csvdepth[i]:
+						csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
+						break
+					else:
+						csv.update({'{0:.2f}m'.format(dataInfo["Depth"]): value.ravel()})
+						break
+				else: # maybe len is 1 or depth is max
+				# for...else have some attentions https://www.cnblogs.com/dspace/p/6622799.html
+					if round(dataInfo["Depth"], 2) > csvdepth[i]:
+						csv.insert(i+1+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
+					else:
+						csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
+				# update filename
+				fileName = r'{0},{1}m-{2}m,({3}x{4}).csv'.format(
+					dataInfo["Time"], csv.columns[2], csv.columns[-1], value.shape[-2], value.shape[-1])
+				# write back
+				csv.to_csv(fileName, index=False, na_rep='NaN')
+				os.remove(fname)
+				break
+		else: # new file
+			header = ['log', 'lat', '{0:.2f}m'.format(dataInfo["Depth"])]
+			fileName = r'{0},{1:.2f}m,({2}x{3}).csv'.format(
+				dataInfo["Time"], dataInfo["Depth"], value.shape[-2], value.shape[-1])
+			x, y = np.meshgrid(xi, yi)
+			point = np.rec.fromarrays([x, y])
 			dt1 = pd.DataFrame(point.ravel())
-			for j in dataInfo["DepthRange"]:
-				dt2 = pd.DataFrame(value[i][j].ravel())
-				dt1 = pd.concat([dt1, dt2], axis=1)
-			dt1.to_csv(fileName, index=False, header=header)
-		else:
-			fileName = r'{0},({1}x{2}).csv'.format(
-				dataInfo["TimeList"][i], value.shape[-2], value.shape[-1])
-			header = head + ["no depth"]
-			dt1 = pd.DataFrame(point.ravel())
-			dt2 = pd.DataFrame(value[i].ravel())
-			pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header)
-	# 读：csv = np.genfromtxt('some.csv',delimiter=",")[1:,:]
-
+			dt2 = pd.DataFrame(value.ravel())
+			pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
+	
 if __name__ == '__main__':
 	'''
 	f1 = NcFile('relative humidity1960-2017.nc')
@@ -481,13 +494,12 @@ if __name__ == '__main__':
 	'''
 	start = time.clock()
 	rootPath = r'/Users/littlesec/Desktop/毕业设计/caoweidongdata/'
-	os.chdir(rootPath) #进入工作目录
-	fileNamePattern = re.compile(r'.*.nc') # 第一个点不能省略
+	os.chdir(rootPath)
+	fileNamePattern = re.compile(r'.*.nc')
 	fileList = os.listdir()
 	for file in fileList:
-		if not fileNamePattern.match(file) is None:
-			f1 = NcFile(file, rootPath)
-			f1.processAFileData(5)
+		if fileNamePattern.match(file):
+			pass
 
 	elapsed = (time.clock()-start)
 	print("run time: "+str(elapsed)+" s")
