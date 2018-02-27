@@ -4,9 +4,8 @@
 3. 直接修改代码`csv = np.genfromtxt('minisome.csv',delimiter=',')`对两种不同文件进行试验。统一导出文件：`somenew.csv`。
 
 ## 目的
-1. [scipy.interpolate.interp2d](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html#scipy.interpolate.interp2d)文档中提及到参数中的x,y可以是向量（表格）形式：
-`x = [0,1,2];  y = [0,3]; z = [[1,2,3], [4,5,6]] `，也可以是一维形式：（应当注意到`len(z) == len(x) == len(y)`，且一一对应）
-    + ```
+1. [scipy.interpolate.interp2d](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html#scipy.interpolate.interp2d)文档中提及到参数中的x,y可以是向量（表格）形式：`x = [0,1,2];  y = [0,3]; z = [[1,2,3], [4,5,6]] `，也可以是一维形式：（应当注意到`len(z) == len(x) == len(y)`，且一一对应）
+    ```
     x = [0,1,2,0,1,2]
     y = [0,0,0,3,3,3]
     z = [1,2,3,4,5,6]
@@ -30,7 +29,7 @@
 ## 建议
 1. 使用ipython运行：`%run 1Dxyzinterptest.py`（先进入工作目录）。这样就可以查看各个参数：`xj, yj, zj`
 2. 查看x,y,z是否一一对应：
-    + ```
+    ```
     for i in range(10):
         print(xj[i], yj[i], zj[i])
     ```
