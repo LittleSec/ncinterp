@@ -44,6 +44,12 @@ def writeCSVgrid(xi, yi, value, dataInfo):
 		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 
 def writeCSVtuple(xi, yi, value, dataInfo):
+    os.chdir(dataInfo["RootPath"]) 
+	dirsName = r"%s_tuple" % dataInfo["DirsName"]
+	if not os.path.exists(dirsName):
+		os.makedirs(dirsName)
+	os.chdir(r'%s' % dirsName)
+
     if not "Depth" in dataInfo:
         writeCSVtupleNoDepth(xi, yi, value, dataInfo)
     else:
@@ -56,13 +62,10 @@ def writeCSVtupleNoDepth(xi, yi, value, dataInfo):
 		e.g. 'relative humidity1960-2017_tuple'
 	Format of csv file name: year + resolution(how many lats x how many lons)
 		e.g. '1960,(13x13).csv'
+    Attention:
+        Always be called by writeCSVtuple().
+        If call it alone, please make sure the workpath is right.
 	'''
-    os.chdir(dataInfo["RootPath"]) 
-	dirsName = r"%s_tuple" % dataInfo["DirsName"]
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-
     fileName = r'{0},({1}x{2}).csv'.format(
             dataInfo["Time"][:4], value.shape[-2], value.shape[-1])
     for fname in os.listdir(os.getcwd()):
@@ -103,13 +106,10 @@ def writeCSVtupleWithDepth(xi, yi, value, dataInfo):
 		e.g. 'relative humidity1960-2017_tuple'
 	Format of csv file name: time(+ depth range) + resolution(how many lats x how many lons)
 		e.g. '1960-01-16,5m-200m,(13x13).csv'
+    Attention:
+        Always be called by writeCSVtuple().
+        If call it alone, please make sure the workpath is right.
 	'''
-	os.chdir(dataInfo["RootPath"]) 
-	dirsName = r"%s_tuple" % dataInfo["DirsName"]
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-	
     fileNamePattern = '{0}.*\({1}x{2}\)\.csv'.format(
             dataInfo["Time"], value.shape[-2], value.shape[-1])
     fileNameRegex = re.compile(fileNamePattern)
