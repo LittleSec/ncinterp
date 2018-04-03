@@ -19,20 +19,24 @@
 %     end
 % end
 
-function interpACSV(fileName, resolution, savePath)
+function interpACSV(fileName, minute, savePath)
     csvOld = csvread(fileName);
-    steps = resolution/60
+    % steps = minutes/60;
+    n = floor(60/minute);
     x = csvOld(1,2:end);
     y = csvOld(2:end,1);
 
     z = csvOld(2:end, 2:end);
-    % è€ƒè™‘åˆ¤æ–­æ˜¯å¦å¸¦æœ‰NaNï¼Œè¿˜æ˜¯ç›´æ¥ç©ºï¼Œç©ºç™½éœ€è¦æ›¿æ¢ã€‚
-    % ä¼˜å…ˆè®©è°ƒç”¨è€…å¤„ç†ï¼Œå› ä¸ºè¿™ä¸ªé€»è¾‘ä¸ç¬¦åˆå…¨ç½‘æ ¼éƒ½æœ‰å€¼çš„æƒ…å†µã€‚
+    % ????¤æ????å¸??NaNï¼??????¥ç©ºï¼?©º?½é?è¦?????
+    % ä¼??è®©è??¨è?å¤??ï¼??ä¸ºè?ä¸??è¾??ç¬???¨ç??¼é????????µã?
     % if (numel(z(isnan(z))) == 0)
     %     z(z==0)=NaN;
+    % end
     f = griddedInterpolant({y,x},z,'cubic');
-    xq = min(x):steps:max(x);
-    yq = min(y):steps:max(y);
+    % xq = min(x):steps:max(x);
+    xq = linspace(min(x), max(x), (max(x)-min(x))*n+1);
+    % yq = min(y):steps:max(y);
+    yq = linspace(min(y), max(y), (max(y)-min(y))*n+1);
     yq = yq';
     zq = f({yq,xq});
     csvNew = [inf xq; yq zq];
