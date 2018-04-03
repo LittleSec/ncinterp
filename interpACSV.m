@@ -19,16 +19,16 @@
 %     end
 % end
 
-function interpACSV(fileName, minute, savePath)
+function interpACSV(fileName, minutes, savePath)
     csvOld = csvread(fileName);
     % steps = minutes/60;
-    n = floor(60/minute);
+    n = floor(60/minutes);
     x = csvOld(1,2:end);
     y = csvOld(2:end,1);
 
     z = csvOld(2:end, 2:end);
-    % ????¤æ????å¸??NaNï¼??????¥ç©ºï¼?©º?½é?è¦?????
-    % ä¼??è®©è??¨è?å¤??ï¼??ä¸ºè?ä¸??è¾??ç¬???¨ç??¼é????????µã?
+    % è€ƒè™‘åˆ¤æ–­æ˜¯å¦å¸¦æœ‰NaNï¼Œè¿˜æ˜¯ç›´æ¥ç©ºï¼Œç©ºç™½éœ€è¦æ›¿æ¢ã€‚
+    % ä¼˜å…ˆè®©è°ƒç”¨è€…å¤„ç†ï¼Œå› ä¸ºè¿™ä¸ªé€»è¾‘ä¸ç¬¦åˆå…¨ç½‘æ ¼éƒ½æœ‰å€¼çš„æƒ…å†µã€‚
     % if (numel(z(isnan(z))) == 0)
     %     z(z==0)=NaN;
     % end
