@@ -6,6 +6,8 @@ from scipy import interpolate
 import re
 import datetime
 import time
+import matlab.engine
+import csvwriteop
 
 '''
 备忘录：
@@ -13,14 +15,70 @@ import time
 dataProcessor深度空列表操作最好有误提示！
 2018-02-08
 考虑一下从有深度切换到无深度是否需要清空与深度相关的code，因为部分func会通过dataInfo的键进行判断
-2018-02-09
-处理文件函数还是放回文件类比较合适
-2018-02-11
-调整写文件参数，加入指定文件名模块，方便调试
 '''
 
+def indexOfList(dataList, value):
+	'''
+	The main idea is bin_search.
+	If find successfully, than return the index.
+	If find unsuccessfully，than return the index whose value is closer to value.
+		This is Different from list.index() function(will throw a ValueError)
+	By the way, dataList is an ascending sequence by default and haven't same value.
+	'''
+	low = 0
+	high = len(dataList) - 1
+	if value <= dataList[0]:
+		return 0
+	elif value >= dataList[-1]:
+		return len(dataList)-1
+	while low <= high:
+		mid = (low + high) // 2
+		if dataList[mid] == value:
+			return mid
+		elif dataList[mid] > value:
+			high = mid - 1
+		else:
+			low = mid + 1
+	if dataList[low] - value >= value - dataList[high]: # now the dataList[low] > dataList[high] 
+		return high
+	else:
+		return low
+
+def interpAFolder(sourcePath, minutes):
+	'''
+	params:
+		sourcePath: abs path, where the csv file in. like /Desktop/relative humidity1960-2017_grid_(13x13)
+		minutes: How many minutes have a value after interp.
+	Func:
+		Call MATLAB interp function.
+		By default, the targetPath will be decided by params(just change the resulation)
+	Attention:
+		The csv file must be grid format.
+	'''
+	os.chdir(sourcePath)
+
+	# get and creat save path
+	rootPath = '/'.join(sourcePath.split('/')[:-1]) + '/'
+	folder = sourcePath.split('/')[-1] # 'relative humidity1960-2017_grid_(13x13)'
+	gridShape = folder.split('_')[-1][1:-1] # '13x13'
+	n = 60 // minutes
+	newShapeX = (eval(gridShape.split('x')[0]) - 1) * n + 1
+	newShapeY = (eval(gridShape.split('x')[-1]) - 1) * n + 1
+	newFolder = '{0}_({1}x{2})'.format('_'.join(folder.split('_')[:-1]), newShapeX, newShapeY)
+	targetPath = rootPath + newFolder + '/'
+	if not os.path.exists(targetPath):
+		os.makedirs(targetPath)
+
+	# call matlab
+	eng = matlab.engine.start_matlab()
+	fileNamePattern = re.compile(r'.*.csv')
+	fileList = os.listdir()
+	for file in fileList:
+		if fileNamePattern.match(file):
+			eng.interpACSV(file, float(minutes), targetPath, nargout=0)
+
 class NcFile:
-	def __init__(self, fileName, rootPath = r'/Users/littlesec/Desktop/毕业设计/caoweidongdata/'):
+	def __init__(self, fileName, rootPath):
 		self.rootPath = rootPath
 		self.fileName = fileName
 		self.f = self.__openAnNcFile()
@@ -55,10 +113,10 @@ class NcFile:
 		self.dateStrList = self.getTimeValue()
 		if(self.dimension == 4):
 			self.depthDataList = self.getDepthValue()
-		if np.isnan(self.missingValue):
-			print("There is no missing_value in this file: " + self.fileName)
-			print("The observed value: **max: {0}**, **min: {1}**".format(np.nanmax(self.observedValue), np.nanmin(self.observedValue)))
-			self.missingValue = float(eval(input("Please input a num to replace the missing_value: ")))
+		# if np.isnan(self.missingValue):
+		# 	print("There is no missing_value in this file: " + self.fileName)
+		# 	print("The observed value: **max: {0}**, **min: {1}**".format(np.nanmax(self.observedValue), np.nanmin(self.observedValue)))
+		# 	self.missingValue = float(eval(input("Please input a num to replace the missing_value: ")))
 
 	def getLongiAndLati(self):
 		'''
@@ -86,7 +144,7 @@ class NcFile:
 		'''
 		This function will read the time(actually it's the date) list in nc file, and return it.
 		In nc file, the item in time list is just a number started from 1 or 0.5, and it's not esay for us to read them intuitively.
-		So, this function will change number to a date string(yyyy-mm-dd) by combining with the units.
+		So, this function will change number to a date string('yyyy-mm-dd') by combining with the units.
 		Attention, by default, every month just has 30 days.
 		'''
 		dateNumberList = []
@@ -150,10 +208,12 @@ class NcFile:
 				var = self.f.variables[key]
 				observedValue = var.data.astype(float)
 				self.missingValue = np.float(var.missing_value)
+				if not np.isnan(self.missingValue):
+					observedValue[observedValue == self.missingValue] = np.nan
 				if('add_offset' in dir(var) and 'scale_factor' in dir(var)): # 源数据经过处理，例如sst2960-2017.nc
 					# 不可以observedValue *= 1，因为这只是个指向文件数据而已，而数据是只读的。
 					observedValue = var.data.astype(float) * var.scale_factor + var.add_offset
-					self.missingValue *= var.scale_factor 
+					self.missingValue *= var.scale_factor
 					self.missingValue += var.add_offset
 				break
 		return observedValue
@@ -161,7 +221,7 @@ class NcFile:
 class DataSelector:
 	def __init__(self, dateStringList, depthList=None):
 		self.dateStringList = dateStringList # ['1960-02-16', '1960-03-16', '1960-04-16', '1961-05-16', '1970-06-16', '2001-07-16', '2008-06-16']
-		self.startDate = dateStringList[0]# '1960-02-16' # 
+		self.startDate = dateStringList[0]# '1960-02-16' #
 		self.endDate = dateStringList[-1]# '2008-06-16'
 		self.depthList = depthList # [1, 2.3, 3.45, 4.567, 5.65, 6.3, 7]
 		self.timeSelectList = range(len(dateStringList))
@@ -245,33 +305,6 @@ class DataSelector:
 		# return list(range(index1, index2 + 1)) # for test
 		self.timeSelectList = range(index1, index2 + 1)
 
-	def __indexOfDepth(self, num, depthList=None):
-		'''
-		The main idea is bin_search.
-		If find successfully, than return the index.
-		If find unsuccessfully，than return the index whose value is closer to num.
-		By the way, depthList is an ascending sequence by default and haven't same value.
-		'''
-		depthList = self.depthList
-		low = 0
-		high = len(depthList) - 1
-		if num <= depthList[0]:
-			return 0
-		elif num >= depthList[len(depthList)-1]:
-			return len(depthList)-1
-		while low <= high:
-			mid = (low + high) // 2
-			if depthList[mid] == num:
-				return mid
-			elif depthList[mid] > num:
-				high = mid - 1
-			else:
-				low = mid + 1
-		if depthList[low] - num >= num - depthList[high]: # now the depthList[low] > depthList[high] 
-			return high
-		else:
-			return low
-
 	def selectByDepth(self, depthStr):
 		'''
 		Have hard code.
@@ -287,19 +320,19 @@ class DataSelector:
 
 		if len(strSplitList) == 1:
 			if numRegex.match(depthStr):
-				index1 = index2 = self.__indexOfDepth(eval(depthStr))
+				index1 = index2 = indexOfList(self.depthList, eval(depthStr))
 			else:
 				index1 = index2 = 0
 		elif len(strSplitList) == 2:
 			if numRegex.match(strSplitList[0]):
-				index1 = self.__indexOfDepth(eval(strSplitList[0]))
+				index1 = indexOfList(self.depthList, eval(strSplitList[0]))
 			else:
 				index1 = 0
 
 			if numRegex.match(strSplitList[1]):
-				index2 = self.__indexOfDepth(eval(strSplitList[1]))
+				index2 = indexOfList(self.depthList, eval(strSplitList[1]))
 			else:
-				index2 = self.__indexOfDepth(99999) # hard code: max num
+				index2 = len(self.depthList) - 1
 
 		if index1 > index2:
 			index1, index2 = index2, index1
@@ -310,196 +343,44 @@ class DataSelector:
 	def selectByTimeAndDepth(self, time, depth):
 		pass
 
-class DataProcessor:
-	def __init__(self, file):
-		self.x = file.x # 源经度
-		self.y = file.y # 源纬度
-		self.observedValue = file.observedValue # 源数据值
-		self.dimension = file.dimension
-		dataInfo = {}
-		dataInfo["RootPath"] = file.rootPath
-		dataInfo["DirsName"] = file.fileName[:-3]
-		self.dataInfo = dataInfo
-		self.dateStringList = file.dateStrList
-		if self.dimension == 4:
-			self.depthList = file.depthDataList
-		else:
-			self.depthList = []
-		self.NaNValue = file.missingValue
-		self.xi = self.x # 提高密度后的经度序列
-		self.yi = self.y
-		self.interpFunc = None
-
-	def setNaNValue(self, NaNReplaceValue = None):
-		'''循环遍历设置缺失值，以方便全数据参与插值运算'''
-		if NaNReplaceValue is None:
-			NaNReplaceValue = self.NaNValue
-		self.observedValue[np.isnan(self.observedValue)] = NaNReplaceValue
-		self.observedValue[self.observedValue == self.NaNValue] = NaNReplaceValue
-
-	def setResolution(self, minutes = 1):
-		'''设置分辨率，minutes指多少分就有一个数据，返回新的经纬度序列'''
-		numOfSectionsInOneDegree = 60 // minutes
-		min_x = np.min(self.x)
-		max_x = np.max(self.x)
-		min_y = np.min(self.y)
-		max_y = np.max(self.y)
-		n_x = complex(0, (max_x - min_x) * numOfSectionsInOneDegree + 1)
-		n_y = complex(0, (max_y - min_y) * numOfSectionsInOneDegree + 1)
-		xi = np.ogrid[min_x:max_x:n_x]
-		yi = np.ogrid[min_y:max_y:n_y]
-		return xi, yi
-
-	def __setInterpFunc(self, z):
-		'''计算插值函数（二元三次样条插值）'''
-		self.interpFunc = interpolate.interp2d(self.x, self.y, z, kind='cubic')
-
-	def __interpAGroupData(self):
-		return self.interpFunc(self.xi, self.yi)
-
-	def __processAGroupData(self, timeIndex=0, depthIndex=0, minutes=1, nanValue=None, csvForm='grid'):
-		'''这些nc文件的组织规律如下：
-		z[time]([depth]if have)[x][y]
-		'''
-		if nanValue is not None:
-			self.setNaNValue(nanValue)
-		self.xi, self.yi = self.setResolution(minutes = minutes)
-		if self.dimension == 4:
-			z = self.observedValue[timeIndex][depthIndex]
-		elif self.dimension == 3:
-			z = self.observedValue[timeIndex]
-		self.__setInterpFunc(z)
-		self.interpValue = self.__interpAGroupData()
-
-		if csvForm.lower() == 'tuple':
-			writeInCSVWithTuple(self.xi, self.yi, self.interpValue, self.dataInfo)
-		else:
-			writeInCSVWithGrid(self.xi, self.yi, self.interpValue, self.dataInfo)
-
-	def processAFileData(self, minutes=1, nanValue=None, csvForm='grid'):
-		'''
-		ds = DataSelector([''], [''])
-		ds.timeSelectList = range(len(self.dateStringList))
-		ds.depthSelectList = range(len(self.depthList))
-		'''
-		self.processARangeData(ds=None, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
-
-	def processARangeData(self, ds, minutes=1, nanValue=None, csvForm='grid'):
-		if ds is None:
-			ds = DataSelector(self.dateStringList, self.depthList)
-		if self.dimension == 4:
-			for i in ds.timeSelectList:
-				self.dataInfo["Time"] = self.dateStringList[i]
-				for j in ds.depthSelectList:
-					self.dataInfo["Depth"] = self.depthList[j]
-					self.__processAGroupData(timeIndex=i, depthIndex=j, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
-		elif self.dimension == 3:
-			for i in ds.timeSelectList:
-				self.dataInfo["Time"] = self.dateStringList[i]
-				self.__processAGroupData(timeIndex=i, depthIndex=0, minutes=minutes, nanValue=nanValue, csvForm=csvForm)
-
-def writeInCSVWithGrid(xi, yi, value, dataInfo):
-	'''
-	The situation of same time(and same depth) just has a csv file.
-	Format of directory: nc file name + '_grid_' + resolution(how many lats x how many lons),
-		e.g. 'relative humidity1960-2017_grid_(13x13)'
-	Format of csv file name: timeStr(+ depth with units)
-		e.g. '1960-01-16'
-		e.g. '1960-01-16,200m' 
-	The units of depth is 'm' by default
-	'''
-	# dataInfo: RootPath, DirsName, Time(str), Depth(num)
-	os.chdir(dataInfo["RootPath"]) 
-	dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-	if "Depth" in dataInfo:
-		fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
-		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
+def ncToCSVgrid(ncfile, dataselector=None):
+	x = ncfile.x # 源经度
+	y = ncfile.y # 源纬度
+	observedValue = ncfile.observedValue # 源数据值
+	# dimension = ncfile.dimension
+	dataInfo = {}
+	dataInfo["RootPath"] = ncfile.rootPath
+	dataInfo["DirsName"] = ncfile.fileName[:-3]
+	dateStringList = ncfile.dateStrList
+	if ncfile.dimension == 4:
+		depthList = ncfile.depthDataList
 	else:
-		fileName = r'{0}.csv'.format(dataInfo['Time'])
-		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
-	
-def writeInCSVWithTuple(xi, yi, value, dataInfo):
-	'''
-	The situation of same nc file and same resolution has the same one csv file.
-	Format of directory: nc file name + '_tuple'
-		e.g. 'relative humidity1960-2017_tuple'
-	Format of csv file name: time(+ depth range) + resolution(how many lats x how many lons)
-		e.g. '1960-01-16,5m-200m,(13x13).csv'
-	'''
-	os.chdir(dataInfo["RootPath"]) 
-	dirsName = r"%s_tuple" % dataInfo["DirsName"]
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-	
-	if not "Depth" in dataInfo:
-		fileName = r'{0},({1}x{2}).csv'.format(
-				dataInfo["Time"], value.shape[-2], value.shape[-1])
-		header = ['log', 'lat', '']
-		x, y = np.meshgrid(xi, yi)
-		point = np.rec.fromarrays([x, y])
-		dt1 = pd.DataFrame(point.ravel())
-		dt2 = pd.DataFrame(value.ravel())
-		pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
-	else: # have depth
-		fileNamePattern = '{0}.*\({1}x{2}\)\.csv'.format(
-				dataInfo["Time"], value.shape[-2], value.shape[-1])
-		fileNameRegex = re.compile(fileNamePattern)
-		for fname in os.listdir(os.getcwd()):
-			if fileNameRegex.match(fname):
-				# read file
-				# 读：csv = np.genfromtxt('some.csv',delimiter=",")[1:,:]
-				csv = pd.read_csv(fname)
-				csvdepth = [eval(h[:-1]) for h in csv.columns[2:]] # at least have one item, and ascending
-				# insert or update
-				for i in range(len(csvdepth)):
-					if round(dataInfo["Depth"], 2) > csvdepth[i]:
-						continue
-					elif round(dataInfo["Depth"], 2) < csvdepth[i]:
-						csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-						break
-					else:
-						csv.update({'{0:.2f}m'.format(dataInfo["Depth"]): value.ravel()})
-						break
-				else: # maybe len is 1 or depth is max
-				# for...else have some attentions https://www.cnblogs.com/dspace/p/6622799.html
-					if round(dataInfo["Depth"], 2) > csvdepth[i]:
-						csv.insert(i+1+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-					else:
-						csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-				# update filename
-				fileName = r'{0},{1}m-{2}m,({3}x{4}).csv'.format(
-					dataInfo["Time"], csv.columns[2], csv.columns[-1], value.shape[-2], value.shape[-1])
-				# write back
-				csv.to_csv(fileName, index=False, na_rep='NaN')
-				os.remove(fname)
-				break
-		else: # new file
-			header = ['log', 'lat', '{0:.2f}m'.format(dataInfo["Depth"])]
-			fileName = r'{0},{1:.2f}m,({2}x{3}).csv'.format(
-				dataInfo["Time"], dataInfo["Depth"], value.shape[-2], value.shape[-1])
-			x, y = np.meshgrid(xi, yi)
-			point = np.rec.fromarrays([x, y])
-			dt1 = pd.DataFrame(point.ravel())
-			dt2 = pd.DataFrame(value.ravel())
-			pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
-	
+		depthList = []
+	if dataselector is None:
+		dataselector = DataSelector(dateStringList, depthList)
+	if ncfile.dimension == 4:
+		for i in dataselector.timeSelectList:
+			dataInfo["Time"] = dateStringList[i]
+			for j in dataselector.depthSelectList:
+				dataInfo["Depth"] = depthList[j]
+				csvwriteop.writeCSVgrid(x, y, observedValue[i][j], dataInfo)
+	elif ncfile.dimension == 3:
+		for i in dataselector.timeSelectList:
+			dataInfo["Time"] = dateStringList[i]
+			csvwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
+
 if __name__ == '__main__':
 	'''
 	f1 = NcFile('relative humidity1960-2017.nc')
 	f1.processAFileData()
 	'''
 	start = time.clock()
-	rootPath = r'/Users/littlesec/Desktop/毕业设计/caoweidongdata/'
-	os.chdir(rootPath)
-	fileNamePattern = re.compile(r'.*.nc')
-	fileList = os.listdir()
-	for file in fileList:
-		if fileNamePattern.match(file):
-			pass
-
+	rootPath = r'/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new'
+	file = NcFile('1000m_meridional_velocity1960-2008.nc',rootPath)
+	file.getFileInfo()
+	ncToCSVgrid(file)
+	path = r'/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new/1000m_meridional_velocity1960-2008_grid_(33x25)'
+	interpAFolder(path, 6)
+	
 	elapsed = (time.clock()-start)
 	print("run time: "+str(elapsed)+" s")
