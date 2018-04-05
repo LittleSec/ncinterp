@@ -12,7 +12,7 @@ function: csvToJSON()
 写文件函数最好允许指定文件名(默认设置成none即可)方便调试。
 '''
 
-def writeCSVgrid(xi, yi, value, dataInfo):
+def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
 	The situation of same time(and same depth) just has a csv file.
 	Format of directory: nc file name + '_grid_' + resolution(how many lats x how many lons),
@@ -32,18 +32,28 @@ def writeCSVgrid(xi, yi, value, dataInfo):
             Time: (str),format is 'yyyy-mm-dd',
             (if have)Depth: float
         }
+		absFileName(not suggest): abs path/fileName
+	attention:
+		dataInfo and absFileName can't both None.
+		If choose dataInfo is None, please ensure the abs path is exist.
 	'''
-	os.chdir(dataInfo["RootPath"]) 
-	dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-	if "Depth" in dataInfo:
-		fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
-		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
+	if not dataInfo is None:
+		os.chdir(dataInfo["RootPath"]) 
+		dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
+		if not os.path.exists(dirsName):
+			os.makedirs(dirsName)
+		os.chdir(r'%s' % dirsName)
+		if "Depth" in dataInfo:
+			fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
+			pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
+		else:
+			fileName = r'{0}.csv'.format(dataInfo['Time'])
+			pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 	else:
-		fileName = r'{0}.csv'.format(dataInfo['Time'])
-		pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
+		if absFileName is None:
+			absFileName = '/Desktop/error.csv'
+		else:
+			pd.DataFrame(value, columns=xi, index=yi).to_csv(absFileName, na_rep='NaN')
 
 def writeCSVtuple(xi, yi, value, dataInfo):
 	os.chdir(dataInfo["RootPath"])
