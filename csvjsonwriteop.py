@@ -174,7 +174,7 @@ def gridToTupleCSV(gridCSVfileName, savePath):
 	dataInfo["DirsName"] = savePath.split('/')[-1] # source data file name(without ext)
 	dataInfo["Time"] = fileInfo[0]
 	if len(fileInfo) == 2:
-		dataInfo["Depth"] = eval(fileInfo[1][:-1]) # last char is unit 'm'
+		dataInfo["Depth"] = eval(fileInfo[1][:-5]) # last char is unit 'm.csv'
 	csv = np.genfromtxt(gridCSVfileName, delimiter=',')
 	xi = csv[0,1:]
 	yi = csv[1:,0]
@@ -224,7 +224,7 @@ def gridCsvToJSON(gridCSVfileName, savePath):
 	dataInfo["DirsName"] = savePath.split('/')[-1] # source data file name(without ext)
 	dataInfo["Time"] = fileInfo[0]
 	if len(fileInfo) == 2:
-		dataInfo["Depth"] = eval(fileInfo[1][:-1]) # last char is unit 'm'
+		dataInfo["Depth"] = eval(fileInfo[1][:-5]) # last char is unit 'm.csv'
 	csv = np.genfromtxt(gridCSVfileName, delimiter=',')
 	xi = csv[0,1:]
 	yi = csv[1:,0]
