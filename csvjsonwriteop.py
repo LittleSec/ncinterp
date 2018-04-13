@@ -3,14 +3,7 @@ import numpy as np
 import pandas as pd
 import re
 import datetime
-
-'''
-Todo:
-2018-04-02:
-function: csvToJSON()
-2018-04-03:
-写文件函数最好允许指定文件名(默认设置成none即可)方便调试。
-'''
+import json
 
 def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
@@ -45,15 +38,14 @@ def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 		os.chdir(r'%s' % dirsName)
 		if "Depth" in dataInfo:
 			fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
-			pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 		else:
 			fileName = r'{0}.csv'.format(dataInfo['Time'])
-			pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 	else:
 		if absFileName is None:
-			absFileName = '/Desktop/error.csv'
+			fileName = './error.csv'
 		else:
-			pd.DataFrame(value, columns=xi, index=yi).to_csv(absFileName, na_rep='NaN')
+			fileName = absFileName
+	pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 
 def writeCSVtuple(xi, yi, value, dataInfo):
 	os.chdir(dataInfo["RootPath"])
@@ -170,7 +162,9 @@ def gridToTupleCSV(gridCSVfileName, savePath):
 	There is no code to check whether the input csv file is grid format, so, caller should ensure it.
 	params:
 		girdCSVfileName just has 2 situation: timeStr(, depth with units).
+			In other word, there is no path in this param, just a file name, caller should enter the workplace before call this functon.
 		savePath should consistant with RootPath/DirsPath.
+			The caller should ensure the savePath is existed.
 		See more: param in writeCSVgrid() function.
 	The output file name refer to writeCSVtupleNoDepth/writeCSVtupleWithDepth() function.
 	'''
@@ -187,5 +181,52 @@ def gridToTupleCSV(gridCSVfileName, savePath):
 	value = csv[1:, 1:]
 	writeCSVtuple(xi, yi, value, dataInfo)
 
-def csvToJSON(csvFile, savePath):
-    pass
+def writeJSON(xi, yi, value, dataInfo=None, absFileName=None):
+	'''
+	params:
+		refer to function writeCSVgrid()
+	'''
+	if not dataInfo is None:
+		os.chdir(dataInfo["RootPath"])
+		dirsName = r"{0}_json_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
+		if not os.path.exists(dirsName):
+			os.makedirs(dirsName)
+		os.chdir(r'%s' % dirsName)
+		if "Depth" in dataInfo:
+			fileName = r'{0}, {1:.2f}m.json'.format(dataInfo['Time'], dataInfo['Depth'])
+		else:
+			fileName = r'{0}.json'.format(dataInfo['Time'])
+	else:
+		if absFileName is None:
+			fileName = './error.json'
+		else:
+			fileName = absFileName
+
+	x, y = np.meshgrid(xi, yi)
+	coords = np.rec.fromarrays([x, y]).ravel()
+	elevations = value.ravel()
+	jlist = []
+	for i in range(len(elevations)):
+		if np.isnan(elevations[i]):
+			continue
+		jlist.append({"coord": list(coords[i]), "elevation": elevations[i]})
+	with open(fileName, 'w', encoding='utf-8') as f:
+		f.write(json.dumps(jlist, indent=4))
+
+def gridCsvToJSON(gridCSVfileName, savePath):
+	'''
+	params:
+		refer to functon gridCSVfileName()
+	'''
+	fileInfo = gridCSVfileName.split(',')
+	dataInfo = {}
+	dataInfo["RootPath"] = '/'.join(savePath.split('/')[:-1]) + '/'
+	dataInfo["DirsName"] = savePath.split('/')[-1] # source data file name(without ext)
+	dataInfo["Time"] = fileInfo[0]
+	if len(fileInfo) == 2:
+		dataInfo["Depth"] = eval(fileInfo[1][:-1]) # last char is unit 'm'
+	csv = np.genfromtxt(gridCSVfileName, delimiter=',')
+	xi = csv[0,1:]
+	yi = csv[1:,0]
+	value = csv[1:, 1:]
+	writeJSON(xi, yi, value, dataInfo)
