@@ -7,7 +7,7 @@ import re
 import datetime
 import time
 import matlab.engine
-import csvwriteop
+import csvjsonwriteop
 
 '''
 备忘录：
@@ -71,10 +71,9 @@ def interpAFolder(sourcePath, minutes):
 
 	# call matlab
 	eng = matlab.engine.start_matlab()
-	fileNamePattern = re.compile(r'.*.csv')
 	fileList = os.listdir()
 	for file in fileList:
-		if fileNamePattern.match(file):
+		if file[-4:] == '.csv':
 			eng.interpACSV(file, float(minutes), targetPath, nargout=0)
 
 class NcFile:
@@ -363,11 +362,11 @@ def ncToCSVgrid(ncfile, dataselector=None):
 			dataInfo["Time"] = dateStringList[i]
 			for j in dataselector.depthSelectList:
 				dataInfo["Depth"] = depthList[j]
-				csvwriteop.writeCSVgrid(x, y, observedValue[i][j], dataInfo)
+				csvjsonwriteop.writeCSVgrid(x, y, observedValue[i][j], dataInfo)
 	elif ncfile.dimension == 3:
 		for i in dataselector.timeSelectList:
 			dataInfo["Time"] = dateStringList[i]
-			csvwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
+			csvjsonwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
 
 if __name__ == '__main__':
 	'''
