@@ -2,15 +2,15 @@ import numpy as np
 import os
 import csvjsonwriteop
 
-g = 9.8
-w = 7.292e-5
+g = 9.8 # 重力加速度，单位m/s^2
+w = 7.292e-5 # 自转角速度，单位rad/s
 
 def fCal(w, lat):
     '''
     f = 2 * w * sin(Phi)
     f: 科氏参数，地转参数
-    w: 地球自转角速度
-    Phi: 地理纬度latitude
+    w: 地球自转角速度, rad/s
+    Phi: 地理纬度latitude, 角度-->弧度
     '''
     return 2 * w * np.sin(np.radians(lat))
 
@@ -33,7 +33,7 @@ y: latitude纬度 * 111e3 --> m
 
 def uCal(g, w, sla, y):
     diffSLA = diffv(sla) # 少了一行
-    diffy = (y[1] - y[0]) * 111e3
+    diffy = (y[1] - y[0]) * 111e3 # 单位：m
     f = fCal(w, y)
     f = np.delete(f, 0, axis=0)
     f = f.reshape((f.shape[0], 1)) # np.transport()转置函数对一维数组不起作用
@@ -41,14 +41,19 @@ def uCal(g, w, sla, y):
 
 def vCal(g, w, sla, x, y):
     diffSLA = diffu(sla) # 少了一列
-    diffx = (x[1] - x[0]) * 111e3 * np.cos(y)
+    diffx = (x[1] - x[0]) * 111e3 * np.cos(np.radians(y))
     diffx = diffx.reshape((diffx.shape[0], 1))
     f = fCal(w, y)
     f = f.reshape((f.shape[0], 1))
     return (g / f * diffSLA /diffx) # 比sla少了一列（第一列）
 
-def OkuboWeiss(diffU, diffV, diffX, diffY):
+def OkuboWeiss(U, V, diffX, diffY):
     '''
+    params:
+        U: 2-D -1x0
+        V: 2-D 0x-1
+        diffX: 1-D = lon * 111e3 * cos(y), 列向量, unit: m
+        diffY: a num = lat * 111e3, unit: m
     Sn = U'x - V'y
     Ss = V'x + U'y
     w = V'x - U'y
@@ -57,10 +62,20 @@ def OkuboWeiss(diffU, diffV, diffX, diffY):
       = U'x^2 + V'y^2 - 2U'xV'y + V'x^2 + U'y^2 +2V'xU'y - V'x^2 - U'y^2 + 2V'xU'y
       = U'x^2 + V'y^2 - 2U'xV'y + 4V'xU'y
     '''
-    Ux = diffU/diffX
-    Vy = diffV/diffY
-    Vx = diffV/diffX
-    Uy = diffU/diffY
+    
+    Ux = diffu(U)/diffX[1:] # -1x-1  /  -1x0
+    Vy = diffv(V)/diffY # -1x-1  /  num
+    Vx = diffu(V)/diffX # 0x-2  /  0x0
+    Uy = diffv(U)/diffY # -2x0  /  num
+    Ux = np.delete(Ux, 0, axis=0)
+    Ux = np.delete(Ux, 0, axis=1)
+
+    Vy = np.delete(Vy, 0, axis=0)
+    Vy = np.delete(Vy, 0, axis=1)
+
+    Vx = np.delete(Vx, [0, 1], axis=0) # 删两行
+
+    Uy = np.delete(Uy, [0, 1], axis=1) # 删两列
     q = Ux**2 + Vy**2 - 2*Ux*Vy + 4*Vx*Uy
     return q
 
@@ -83,15 +98,13 @@ def culAndSaveOWparam(slaFile, savePath):
     u = uCal(g, w, sla, y) # 少一行
     v = vCal(g, w, sla, x, y) # 少一列
     diffX = (x[1] - x[0]) * 111e3 * np.cos(y)
-    diffX = diffX.reshape((diffX.shape[0], 1)) # 是一个ndarray
+    diffX = diffX.reshape((diffX.shape[0], 1)) # 是一个ndarray，列向量
     diffY = (y[1] - y[0]) * 111e3 # 是个数
 
-    diffU = diffu(u) # 少一列
-    diffV = diffv(v) # 少一行
-    ow = OkuboWeiss(diffU, diffV, diffX[1:], diffY)
+    ow = OkuboWeiss(u, v, diffX, diffY)
     # write csv
     absFileName = savePath + '/' + slaFile
-    csvjsonwriteop.writeCSVgrid(x[1:], y[1:], ow, dataInfo=None, absFileName=absFileName)
+    csvjsonwriteop.writeCSVgrid(x[2:], y[2:], ow, dataInfo=None, absFileName=absFileName)
     # convenience to test(plot)
     # return ow
 
@@ -115,27 +128,5 @@ def processAFolderOW(rootPath, salFolder):
 
 if __name__ == '__main__':
     rootPath = '/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new'
-    salFolder = 'ANOMALY_sea_surface_height1960-2008_grid_(193x145)'
+    salFolder = 'ANOMALY_sea_surface_height1960-2008_grid_(33x25)'
     processAFolderOW(rootPath, salFolder)
-
-'''
-[
-    [{
-        "coord" : [lon, lat],
-        "value" : value
-    },
-    {
-        "coord" : [lon, lat],
-        "value" : value
-    },
-    .
-    .
-    .
-    {
-        "coord" : [lon, lat],
-        "value" : value
-    }]
-]
-'''
-
-    
