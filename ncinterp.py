@@ -7,7 +7,7 @@ import re
 import datetime
 import time
 import matlab.engine
-import csvwriteop
+import csvjsonwriteop
 
 '''
 备忘录：
@@ -363,11 +363,11 @@ def ncToCSVgrid(ncfile, dataselector=None):
 			dataInfo["Time"] = dateStringList[i]
 			for j in dataselector.depthSelectList:
 				dataInfo["Depth"] = depthList[j]
-				csvwriteop.writeCSVgrid(x, y, observedValue[i][j], dataInfo)
+				csvjsonwriteop.writeCSVgrid(x, y, observedValue[i][j], dataInfo)
 	elif ncfile.dimension == 3:
 		for i in dataselector.timeSelectList:
 			dataInfo["Time"] = dateStringList[i]
-			csvwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
+			csvjsonwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
 
 if __name__ == '__main__':
 	'''
