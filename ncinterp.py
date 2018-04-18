@@ -15,6 +15,8 @@ import csvjsonwriteop
 dataProcessor深度空列表操作最好有误提示！
 2018-02-08
 考虑一下从有深度切换到无深度是否需要清空与深度相关的code，因为部分func会通过dataInfo的键进行判断
+2018-04-18
+interpAFolder()中的新分辨率的生成是有问题的，默认了原分辨率是1度
 '''
 
 def indexOfList(dataList, value):
