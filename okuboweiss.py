@@ -67,16 +67,8 @@ def OkuboWeiss(U, V, diffX, diffY):
     Vy = diffv(V)/diffY # -1x-1  /  num
     Vx = diffu(V)/diffX # 0x-2  /  0x0
     Uy = diffv(U)/diffY # -2x0  /  num
-    Ux = np.delete(Ux, 0, axis=0)
-    Ux = np.delete(Ux, 0, axis=1)
 
-    Vy = np.delete(Vy, 0, axis=0)
-    Vy = np.delete(Vy, 0, axis=1)
-
-    Vx = np.delete(Vx, [0, 1], axis=0) # 删两行
-
-    Uy = np.delete(Uy, [0, 1], axis=1) # 删两列
-    q = Ux**2 + Vy**2 - 2*Ux*Vy + 4*Vx*Uy
+    q = Ux[1:,1:]**2 + Vy[1:,1:]**2 - 2*Ux[1:,1:]*Vy[1:,1:] + 4*Vx[2:]*Uy[:,2:]
     return q
 
 def culAndSaveOWparam(slaFile, savePath):
@@ -97,7 +89,7 @@ def culAndSaveOWparam(slaFile, savePath):
     sla = slaCSV[1:,1:]
     u = uCal(g, w, sla, y) # 少一行
     v = vCal(g, w, sla, x, y) # 少一列
-    diffX = (x[1] - x[0]) * 111e3 * np.cos(y)
+    diffX = (x[1] - x[0]) * 111e3 * np.cos(np.radians(y))
     diffX = diffX.reshape((diffX.shape[0], 1)) # 是一个ndarray，列向量
     diffY = (y[1] - y[0]) * 111e3 # 是个数
 
@@ -113,7 +105,8 @@ def processAFolderOW(rootPath, salFolder):
     attention:
         There is no code to check files' name in uFolder and vFolder are same.
         Please ensure that before call this function.
-    owFolder: relative humidity1960-2017_grid_(13x13)_OW
+    salFolder: ANOMALY_sea_surface_height1960-2008_grid_(33x25)
+    saveFolder: OkuboWeiss_(13x13)
     '''
     os.chdir(rootPath)
     owFolder = 'OkuboWeiss_' + salFolder.split('_')[-1] # -1 is '(13x13)'
