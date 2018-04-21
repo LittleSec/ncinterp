@@ -1,25 +1,33 @@
 # NC文件插值处理
 
-## 一、NC文件特点
-1. 经纬度范围：24.5N-36.5N，117.5E-129.5，一度一个数据。
-2. 经纬度的属性名为X,Y或lat,lon，一般会有long_name属性，为对应首字母大写的单词。
+## 一、环境
+1. matlab 2016a
+2. python 3.4.3(配合matlab版本即可)
+3. 用到的第三方库:
+    + numpy
+    + scipy
+    + pandas
+    + matlab
+4. 前三个库可使用pip安装，自行安装或进入该git目录下输入命令可一次性安装：```pip3 -r install requestment.txt```
+5. matlab引擎的安装：下载并安装matlab 2016a后参考官网运行setpy.py[安装用于 Python 的 MATLAB 引擎 API](https://ww2.mathworks.cn/help/matlab/matlab_external/install-the-matlab-engine-for-python.html)
+6. 安装完成后把```interpACSV.m```放入matlab的工作目录下。
+>注意：实际上，python和matlab的版本不一定要上述说明的版本，唯一的硬性要求是安装matlab引擎版本所支持的python版本即可。如果使用matlab 2017b或以上，则可以使用python 3.6.x。
+
+## 二、NC文件特点
+1. 经纬度范围：东黄海区域。要求网格间隔必须一致（这是调用的matlab插值函数所限制的）。
+2. 经纬度的属性名为X,Y或lat,lon或latitude,longitude（字母大小写都可以）。
 3. 时间单位要么是日，要么是月，月的话值为小数。
 4. 真正的观测值只能有一个。
 5. 除了经纬度两个维度外，只能再有时间或深度维度，其中时间维度是必要的。
 
-## 二、生成文件的规律
-1. 先创建与nc文件同名文件夹-->文件名组成：时间，深度，分辨率(多少x多少)，若没有深度，则空字符串。
+## 三、生成文件的规律
+>具体说明参看csvjsonwriteop库
+1. 文件夹：与nc文件同名文件夹 + csv的形式（grid或tuple）/ JSON (+ 特殊的值名如ow)
+2. 文件名组成：时间，深度。
 
-## 三、ncinterp.py使用
-```python
->>> import ncinterp as ni
->>> rootPath = r'/Users/littlesec/Downloads/'
->>> file = ni.NcFile('cldc.mean.nc',rootPath)
->>> file.processAFileData(5)
->>> # 如果是想直接将nc导出csv文件，则可以：
->>> file.processAFileData(60)
-```
-2. 若nc文件定义无missing_value，程序会提示输入。
-3. 没有现成的封装能仅仅处理一组数据。也无法现成的封装设置缺失值（但可以修改代码，搜索代码：`data.setNaNValue(50)`，50即为缺失值）
-4. 运行过程可能会弹出很多很多异常信息，可忽略（try-catch造成）
-5. 或把符合条件的nc文件放到文件夹中，并修改代码中main函数的rootPath路径，直接运行py文件即可。
+## 四、使用
+1. 测试文件不建议直接点击运行，肯定会出错。应当打开后根据需要修改文件名（必要时修改路径），复制相应的代码在IDLE或matlab的命令窗口来执行。
+1. 插值和导出文件的操作参考testSample.py
+    + 必须先导出csv文件然后再插值
+    + 运行速度很慢，耐性等待。建议使用dataselector选择数据再导出，以减少处理的文件数量
+2. plotSample.m是matlab文件，用于快速查看插值前后的效果。
