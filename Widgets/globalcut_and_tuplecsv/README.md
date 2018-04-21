@@ -12,6 +12,6 @@
 2. 可能需要修改的地方：
     + 读取的文件名`fileName`；
     + 根据需要修改缺失值替代值`nanValue`（每个观测值提供缺失值字段，默认字段名是`_FillValue`）
-    + 如果要截取经纬度范围，需要你事先知道经纬度的索引`lonIndex1, lonIndex2, latIndex1, latIndex2`（后期有时间我会加入专门的函数方便获知索引）；
+    + ~~如果要截取经纬度范围，需要你事先知道经纬度的索引`lonIndex1, lonIndex2, latIndex1, latIndex2`（后期有时间我会加入专门的函数方便获知索引）；~~ [工具包说明](../pick_maks/README.md)
     + 根据观测值的名称修改`keyList``变量；
     + 导出的文件名`csvName`
