@@ -31,3 +31,7 @@
     + 必须先导出csv文件然后再插值
     + 运行速度很慢，耐性等待。建议使用dataselector选择数据再导出，以减少处理的文件数量
 2. plotSample.m是matlab文件，用于快速查看插值前后的效果。
+
+## 五、需要用到的测试文件
+1. 为了repo的干净度，已将nc文件存入[百度云盘](https://pan.baidu.com/s/1J6yRH381XUPwyD0lsybliQ)，可根据文件名下载。
+2. 若发现链接失效或链接未更新，请联系给我发[邮件](kuaiqleqren@163.com)
