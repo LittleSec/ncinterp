@@ -164,15 +164,15 @@ class NcFile:
 			startDay = int(startDateSubList[2])
 			for i in range(len(dateNumberList)):
 				intPart = int(dateNumberList[i])
-				decimalPart = round(dateNumberList[i] - intPart, 1) # just try 1.9-1
+				decimalPart = round(dateNumberList[i] - intPart, 1) # try 1.9-1 = 0.899...
 				day = startDay + int(decimalPart * 30)
 				month = startMonth
 				year = startYear
-				if(day > 30): # 待考虑，统一每个月只有30天
+				if(day > 30 or day < 0): # 待考虑，统一每个月只有30天
+					month = month + 1 if day > 30 else month - 1
 					day %= 30
-					month += 1
 				month += intPart
-				if(month > 12):
+				if(month > 12 or month < 0):
 					year += (month // 12)
 					month %= 12 # Can't invert the order, because this word will change month value
 					if(month == 0): # think about e.g. 23.5, month=1+23=24, but 24/12=2...0, in fact year just +1 and month should be 12
@@ -370,17 +370,13 @@ def ncToCSVgrid(ncfile, dataselector=None):
 			csvjsonwriteop.writeCSVgrid(x, y, observedValue[i], dataInfo)
 
 if __name__ == '__main__':
-	'''
-	f1 = NcFile('relative humidity1960-2017.nc')
-	f1.processAFileData()
-	'''
 	start = time.clock()
-	rootPath = r'/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new'
-	file = NcFile('1000m_meridional_velocity1960-2008.nc',rootPath)
+	rootPath = r'/Users/littlesec/Downloads'
+	file = NcFile('ssh.nc', rootPath)
 	file.getFileInfo()
-	ncToCSVgrid(file)
-	path = r'/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new/1000m_meridional_velocity1960-2008_grid_(33x25)'
-	interpAFolder(path, 6)
-	
+	# print(file.dateStrList)
+	ds = DataSelector(file.dateStrList)
+	ds.selectByTime('2000-') # param can be 'yyyy' or 'yyyymm' or 't-t'(t can be yyyy or yyyymm or ignore one) 
+	ncToCSVgrid(file, ds)
 	elapsed = (time.clock()-start)
 	print("run time: "+str(elapsed)+" s")
