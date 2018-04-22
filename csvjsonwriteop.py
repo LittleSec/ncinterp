@@ -8,8 +8,8 @@ import json
 def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
 	The situation of same time(and same depth) just has a csv file.
-	Format of directory: nc file name + '_grid_' + resolution(how many lats x how many lons),
-		e.g. 'relative humidity1960-2017_grid_(13x13)'
+	Format of directory: nc file name + '_grid_' + resolution(how many degree has a data),
+		e.g. 'relative humidity1960-2017_grid_0.25'
 	Format of csv file name: timeStr(+ depth with units)
 		e.g. '1960-01-16'
 		e.g. '1960-01-16,200m' 
@@ -32,12 +32,12 @@ def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
 	if not dataInfo is None:
 		os.chdir(dataInfo["RootPath"]) 
-		dirsName = r"{0}_grid_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
+		dirsName = r"{0}_grid_{1}".format(dataInfo["DirsName"], xi[1]-xi[0])
 		if not os.path.exists(dirsName):
 			os.makedirs(dirsName)
 		os.chdir(r'%s' % dirsName)
 		if "Depth" in dataInfo:
-			fileName = r'{0}, {1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
+			fileName = r'{0},{1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
 		else:
 			fileName = r'{0}.csv'.format(dataInfo['Time'])
 	else:
@@ -47,126 +47,45 @@ def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 			fileName = absFileName
 	pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 
-def writeCSVtuple(xi, yi, value, dataInfo):
+def writeCSVtuple(points, values, dataInfo):
+	'''
+	params:
+		points.shape = (N, 2) # before call this func, remember ravel()
+		values.shape = (N) # can have NaN, this func will filter it.
+		One-to-one correspondence between points and values
+	The output file name refer to writeCSVgrid() function.
+	'''
 	os.chdir(dataInfo["RootPath"])
-	dirsName = r"%s_tuple" % dataInfo["DirsName"]
+	dirsName = r"{0}_tuple_{1}".format(dataInfo["DirsName"], 0.1)
 	if not os.path.exists(dirsName):
 		os.makedirs(dirsName)
 	os.chdir(r'%s' % dirsName)
 
-	if not "Depth" in dataInfo:
-		writeCSVtupleNoDepth(xi, yi, value, dataInfo)
+	if "Depth" in dataInfo:
+		fileName = r'{0},{1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
 	else:
-		writeCSVtupleWithDepth(xi, yi, value, dataInfo)
+		fileName = r'{0}.csv'.format(dataInfo['Time'])
 
-def writeCSVtupleNoDepth(xi, yi, value, dataInfo):
-	'''
-	The situation of same nc file, same resolution and same year has the same one csv file.
-	Format of directory: nc file name + '_tuple'
-		e.g. 'relative humidity1960-2017_tuple'
-	Format of csv file name: year + resolution(how many lats x how many lons)
-		e.g. '1960,(13x13).csv'
-    Attention:
-        Always be called by writeCSVtuple().
-        If call it alone, please make sure the workpath is right.
-	'''
-	fileName = r'{0},({1}x{2}).csv'.format(
-			dataInfo["Time"][:4], value.shape[-2], value.shape[-1])
-	for fname in os.listdir(os.getcwd()):
-		if fname == fileName:
-			# read file
-			csv = pd.read_csv(fname)
-			csvdate = [datetime.datetime.strptime(d, "%Y/%m/%d") for d in csv.columns[2:]] # at least have one item, and ascending
-			# insert or update
-			for i in range(len(csvdate)): # ascending
-				if datetime.datetime.strptime(dataInfo["Time"], "%Y-%m-%d") > csvdate[i]:
-					continue
-				elif datetime.datetime.strptime(dataInfo["Time"], "%Y-%m-%d") < csvdate[i]:
-					csv.insert(i+2, dataInfo["Time"].replace('-', '/'), value.ravel())
-					break
-				else: # ==
-					csv.update({dataInfo["Time"].replace('-','/'): value.ravel()})
-					break
-			else: # maybe len is 1 or depth is max
-				if datetime.datetime.strptime(dataInfo["Time"], "%Y-%m-%d") > csvdate[i]:
-					csv.insert(i+1+2, dataInfo["Time"], value.ravel())
-				else:
-					csv.insert(i+2, dataInfo["Time"], value.ravel())
-			# write back
-			csv.to_csv(fileName, index=False, na_rep='NaN')
-			break
-	else: # new file
-		header = ['log', 'lat', dataInfo["Depth"].replace('-', '/')]
-		x, y = np.meshgrid(xi, yi)
-		point = np.rec.fromarrays([x, y])
-		dt1 = pd.DataFrame(point.ravel())
-		dt2 = pd.DataFrame(value.ravel())
-		pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
+	header = ['lon', 'lat', 'value']
+	point1 = []
+	value1 = []
+	for i in range(len(values)):
+		if not np.isnan(values[i]): # 在这里对整个values判NaN不起作用，不知道为啥
+			point1.append(points[i])
+			value1.append(values[i])
+	dt1= pd.DataFrame(point1)
+	dt2= pd.DataFrame(value1)
+	pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
 
-def writeCSVtupleWithDepth(xi, yi, value, dataInfo):
-	'''
-	The situation of same nc file and same resolution has the same one csv file.
-	Format of directory: nc file name + '_tuple'
-		e.g. 'relative humidity1960-2017_tuple'
-	Format of csv file name: time(+ depth range) + resolution(how many lats x how many lons)
-		e.g. '1960-01-16,5m-200m,(13x13).csv'
-	Attention:
-		Always be called by writeCSVtuple().
-		If call it alone, please make sure the workpath is right.
-	'''
-	fileNamePattern = '{0}.*\({1}x{2}\)\.csv'.format(
-			dataInfo["Time"], value.shape[-2], value.shape[-1])
-	fileNameRegex = re.compile(fileNamePattern)
-	for fname in os.listdir(os.getcwd()):
-		if fileNameRegex.match(fname):
-			# read file
-			# 读：csv = np.genfromtxt('some.csv',delimiter=",")[1:,:]
-			csv = pd.read_csv(fname)
-			csvdepth = [eval(h[:-1]) for h in csv.columns[2:]] # at least have one item, and ascending
-			# insert or update
-			for i in range(len(csvdepth)): # ascending
-				if round(dataInfo["Depth"], 2) > csvdepth[i]:
-					continue
-				elif round(dataInfo["Depth"], 2) < csvdepth[i]:
-					csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-					break
-				else: # ==
-					csv.update({'{0:.2f}m'.format(dataInfo["Depth"]): value.ravel()})
-					break
-			else: # maybe len is 1 or depth is max
-			# for...else have some attentions https://www.cnblogs.com/dspace/p/6622799.html
-				if round(dataInfo["Depth"], 2) > csvdepth[i]:
-					csv.insert(i+1+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-				else:
-					csv.insert(i+2, '{0:.2f}m'.format(dataInfo["Depth"]), value.ravel())
-			# update filename
-			fileName = r'{0},{1}m-{2}m,({3}x{4}).csv'.format(
-				dataInfo["Time"], csv.columns[2], csv.columns[-1], value.shape[-2], value.shape[-1])
-			# write back
-			csv.to_csv(fileName, index=False, na_rep='NaN')
-			if fileName != fname:
-				os.remove(fname)
-			break
-	else: # new file
-		header = ['log', 'lat', '{0:.2f}m'.format(dataInfo["Depth"])]
-		fileName = r'{0},{1:.2f}m,({2}x{3}).csv'.format(
-			dataInfo["Time"], dataInfo["Depth"], value.shape[-2], value.shape[-1])
-		x, y = np.meshgrid(xi, yi)
-		point = np.rec.fromarrays([x, y])
-		dt1 = pd.DataFrame(point.ravel())
-		dt2 = pd.DataFrame(value.ravel())
-		pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
-	
 def gridToTupleCSV(gridCSVfileName, savePath):
 	'''
 	There is no code to check whether the input csv file is grid format, so, caller should ensure it.
 	params:
 		girdCSVfileName just has 2 situation: timeStr(, depth with units).
 			In other word, there is no path in this param, just a file name, caller should enter the workplace before call this functon.
-		savePath should consistant with RootPath/DirsPath.
+		savePath should consistant with 'RootPath/DirsPath'.
 			The caller should ensure the savePath is existed.
 		See more: param in writeCSVgrid() function.
-	The output file name refer to writeCSVtupleNoDepth/writeCSVtupleWithDepth() function.
 	'''
 	fileInfo = gridCSVfileName.split(',')
 	dataInfo = {}
@@ -176,10 +95,10 @@ def gridToTupleCSV(gridCSVfileName, savePath):
 	if len(fileInfo) == 2:
 		dataInfo["Depth"] = eval(fileInfo[1][:-5]) # last char is unit 'm.csv'
 	csv = np.genfromtxt(gridCSVfileName, delimiter=',')
-	xi = csv[0,1:]
-	yi = csv[1:,0]
-	value = csv[1:, 1:]
-	writeCSVtuple(xi, yi, value, dataInfo)
+	x, y = np.meshgrid(csv[0,1:], csv[1:,0])
+	points = np.rec.fromarrays([x, y]).ravel()
+	values = csv[1:, 1:].ravel()
+	writeCSVtuple(points, values, dataInfo)
 
 def writeJSON(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
