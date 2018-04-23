@@ -2,6 +2,7 @@ import numpy as np
 from scipy import interpolate
 import pandas as pd
 import os
+import time
 import ncinterp as ni
 import csvjsonwriteop as fop
 
@@ -21,6 +22,7 @@ class DataProcessor:
 		dataInfo = {}
 		dataInfo["RootPath"] = file.rootPath
 		dataInfo["DirsName"] = file.fileName[:-3]
+		dataInfo["Resolution"] = str(file.resolution).replace('.', 'p')
 		self.dataInfo = dataInfo
 		self.dateStringList = file.dateStrList
 		if self.dimension == 4:
@@ -51,17 +53,17 @@ class DataProcessor:
 			degree = 0.1
 
 		currentdir = os.path.dirname(__file__)
-		fileName = '{0}/Widgets/pick_mask/mask_tuple_{1}.csv'.format(currentdir, degree)
+		fileName = '{0}/Widgets/pick_mask/mask_tuple_{1}.csv'.format(currentdir, str(degree).replace('.', 'p'))
 		csv = np.genfromtxt(fileName, delimiter=',')
 		self.interpPoints = csv[csv[:, 2] == 1][:, :2] # 先筛选mask为1的，后切片形成坐标点
 
-		fileName = '{0}/Widgets/pick_mask/mask_grid_{1}.csv'.format(currentdir, degree)
-		self.interpDF = pd.read_csv(fileName, index_col=0).replace(to_replace=[0, 1], value=np.nan)
+		fileName = '{0}/Widgets/pick_mask/mask_grid_{1}.csv'.format(currentdir, str(degree).replace('.', 'p'))
+		self.interpDF = pd.read_csv(fileName, index_col=0).replace(to_replace=[0, 1], value=np.nan) # 全部置为NaN
 
 	def writeCSV(self, dataInfo):
 		# grid: maybe can reuse code
-		os.chdir(dataInfo["RootPath"]) 
-		dirsName = "{0}_grid_{1}".format(dataInfo["DirsName"], 0.1)
+		os.chdir(dataInfo["RootPath"])
+		dirsName = "{0}_grid_{1}".format(dataInfo["DirsName"], dataInfo['Resolution'])
 		if not os.path.exists(dirsName):
 			os.makedirs(dirsName)
 		os.chdir(dirsName)
@@ -75,7 +77,7 @@ class DataProcessor:
 		self.interpDF.to_csv(fileName)
 
 		# tuple:
-		fop.writeCSVtuple(self.interpPoints, self.interpValues, dataInfo)
+		fop.writeCSVtuple(self.interpPoints, self.interpValues, dataInfo=dataInfo)
 		# head= ['lon', 'lat', 'value']
 		# dt1= pd.DataFrame(self.interpPoints)
     	# dt2= pd.DataFrame(self.interpValues)
@@ -106,6 +108,7 @@ class DataProcessor:
 	def processARangeData(self, ds, degree=0.1):
 		if ds is None:
 			ds = ni.DataSelector(self.dateStringList, self.depthList)
+		self.dataInfo['Resolution'] = str(degree).replace('.', 'p')
 		if self.dimension == 4:
 			for i in ds.timeSelectList:
 				self.dataInfo["Time"]= self.dateStringList[i]
@@ -120,12 +123,21 @@ class DataProcessor:
 				self.writeCSV(self.dataInfo)
 
 if __name__ == '__main__':
-	rootPath = r'/Users/littlesec/Downloads'
-	file = ni.NcFile('ssh.nc', rootPath)
+	'''
+	about running time:
+	ssh数据没有深度，时间从2000-2008年9年乘12个月，分辨率0.5-->0.1，耗时：342.44729099999995 s
+	salt数据集，有深度不筛选，时间也是9年乘12个月，分辨率0.5-->0.1，耗时：
+	'''
+	start = time.clock()
+	rootPath = r'/Users/littlesec/Desktop/毕业论文实现/new nc data'
+	file = ni.NcFile('salinity.nc', rootPath)
 	file.getFileInfo()
 	# print(file.dateStrList)
-	ds = ni.DataSelector(file.dateStrList)
-	ds.selectByTime('2000-') # param can be 'yyyy' or 'yyyymm' or 't-t'(t can be yyyy or yyyymm or ignore one) 
-	# ni.ncToCSVgrid(file, ds)
+	ds = ni.DataSelector(file.dateStrList, file.depthDataList)
+	ds.selectByTime('2000-') # param can be 'yyyy' or 'yyyymm' or 't-t'(t can be yyyy or yyyymm or ignore one)
+	ni.ncToCSVgrid(file, ds)
 	dp = DataProcessor(file)
 	dp.processARangeData(ds)
+	file.f.close()
+	elapsed = (time.clock()-start)
+	print("run time: "+str(elapsed)+" s")
