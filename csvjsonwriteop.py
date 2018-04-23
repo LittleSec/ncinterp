@@ -8,20 +8,21 @@ import json
 def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
 	The situation of same time(and same depth) just has a csv file.
-	Format of directory: nc file name + '_grid_' + resolution(how many degree has a data),
-		e.g. 'relative humidity1960-2017_grid_0.25'
+	Format of directory: nc file name + '_grid_' + resolution(how many degree has a data, replace('.', 'p')),
+		e.g. 'relative humidity1960-2017_grid_0p25'
 	Format of csv file name: timeStr(+ depth with units)
 		e.g. '1960-01-16'
-		e.g. '1960-01-16,200m' 
+		e.g. '1960-01-16,200m'
 	The units of depth is 'm' by default
     param:
         xi: a 1*n vector, longitude
         yi: a 1*m vector, latitude
         value: a m*n matrix
-        dataInfo: a dict like 
+        dataInfo: a dict like
         {
             RootPath: (str),abs path
             DirsName: (str),source data file name,
+			Resolution: (str) 0p1 (mean 0.1)
             Time: (str),format is 'yyyy-mm-dd',
             (if have)Depth: float
         }
@@ -31,8 +32,8 @@ def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 		If choose dataInfo is None, please ensure the abs path is exist.
 	'''
 	if not dataInfo is None:
-		os.chdir(dataInfo["RootPath"]) 
-		dirsName = r"{0}_grid_{1}".format(dataInfo["DirsName"], xi[1]-xi[0])
+		os.chdir(dataInfo["RootPath"])
+		dirsName = r"{0}_grid_{1}".format(dataInfo["DirsName"], dataInfo['Resolution'])
 		if not os.path.exists(dirsName):
 			os.makedirs(dirsName)
 		os.chdir(r'%s' % dirsName)
@@ -47,24 +48,33 @@ def writeCSVgrid(xi, yi, value, dataInfo=None, absFileName=None):
 			fileName = absFileName
 	pd.DataFrame(value, columns=xi, index=yi).to_csv(fileName, na_rep='NaN')
 
-def writeCSVtuple(points, values, dataInfo):
+def writeCSVtuple(points, values, dataInfo=None, absFileName=None):
 	'''
 	params:
 		points.shape = (N, 2) # before call this func, remember ravel()
 		values.shape = (N) # can have NaN, this func will filter it.
 		One-to-one correspondence between points and values
+	Attention:
+		dataInfo and absFileName can't both None.
+		If choose dataInfo is None, please ensure the abs path is exist.
 	The output file name refer to writeCSVgrid() function.
 	'''
-	os.chdir(dataInfo["RootPath"])
-	dirsName = r"{0}_tuple_{1}".format(dataInfo["DirsName"], 0.1)
-	if not os.path.exists(dirsName):
-		os.makedirs(dirsName)
-	os.chdir(r'%s' % dirsName)
-
-	if "Depth" in dataInfo:
-		fileName = r'{0},{1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
+	if dataInfo is None:
+		if absFileName is None:
+			fileName = './error.csv'
+		else:
+			fileName = absFileName
 	else:
-		fileName = r'{0}.csv'.format(dataInfo['Time'])
+		os.chdir(dataInfo["RootPath"])
+		dirsName = r"{0}_tuple_{1}".format(dataInfo["DirsName"], dataInfo['Resolution'])
+		if not os.path.exists(dirsName):
+			os.makedirs(dirsName)
+		os.chdir(dirsName)
+
+		if "Depth" in dataInfo:
+			fileName = r'{0},{1:.2f}m.csv'.format(dataInfo['Time'], dataInfo['Depth'])
+		else:
+			fileName = r'{0}.csv'.format(dataInfo['Time'])
 
 	header = ['lon', 'lat', 'value']
 	point1 = []
@@ -87,18 +97,20 @@ def gridToTupleCSV(gridCSVfileName, savePath):
 			The caller should ensure the savePath is existed.
 		See more: param in writeCSVgrid() function.
 	'''
+	gridDir = os.path.abspath(gridCSVfileName).split('/')[-2] # ssh_grid_0p2
 	fileInfo = gridCSVfileName.split(',')
 	dataInfo = {}
 	dataInfo["RootPath"] = '/'.join(savePath.split('/')[:-1]) + '/'
 	dataInfo["DirsName"] = savePath.split('/')[-1] # source data file name(without ext)
 	dataInfo["Time"] = fileInfo[0]
+	dataInfo["Resolution"] = gridDir.split('_')[-1]
 	if len(fileInfo) == 2:
 		dataInfo["Depth"] = eval(fileInfo[1][:-5]) # last char is unit 'm.csv'
 	csv = np.genfromtxt(gridCSVfileName, delimiter=',')
 	x, y = np.meshgrid(csv[0,1:], csv[1:,0])
 	points = np.rec.fromarrays([x, y]).ravel()
 	values = csv[1:, 1:].ravel()
-	writeCSVtuple(points, values, dataInfo)
+	writeCSVtuple(points, values, dataInfo=dataInfo)
 
 def writeJSON(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
@@ -107,7 +119,7 @@ def writeJSON(xi, yi, value, dataInfo=None, absFileName=None):
 	'''
 	if not dataInfo is None:
 		os.chdir(dataInfo["RootPath"])
-		dirsName = r"{0}_json_({1}x{2})".format(dataInfo["DirsName"], value.shape[-2], value.shape[-1])
+		dirsName = r"{0}_json_{1}".format(dataInfo["DirsName"], dataInfo['Resolution'])
 		if not os.path.exists(dirsName):
 			os.makedirs(dirsName)
 		os.chdir(r'%s' % dirsName)
@@ -137,10 +149,12 @@ def gridCsvToJSON(gridCSVfileName, savePath):
 	params:
 		refer to functon gridCSVfileName()
 	'''
+	gridDir = os.path.abspath(gridCSVfileName).split('/')[-2] # ssh_grid_0p2
 	fileInfo = gridCSVfileName.split(',')
 	dataInfo = {}
 	dataInfo["RootPath"] = '/'.join(savePath.split('/')[:-1]) + '/'
 	dataInfo["DirsName"] = savePath.split('/')[-1] # source data file name(without ext)
+	dataInfo["Resolution"] = gridDir.split('_')[-1]
 	dataInfo["Time"] = fileInfo[0]
 	if len(fileInfo) == 2:
 		dataInfo["Depth"] = eval(fileInfo[1][:-5]) # last char is unit 'm.csv'
@@ -148,4 +162,4 @@ def gridCsvToJSON(gridCSVfileName, savePath):
 	xi = csv[0,1:]
 	yi = csv[1:,0]
 	value = csv[1:, 1:]
-	writeJSON(xi, yi, value, dataInfo)
+	writeJSON(xi, yi, value, dataInfo=dataInfo)
