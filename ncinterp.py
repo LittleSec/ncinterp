@@ -6,7 +6,6 @@ from scipy import interpolate
 import re
 import datetime
 import time
-import matlab.engine
 import csvjsonwriteop
 
 '''
@@ -44,39 +43,6 @@ def indexOfList(dataList, value):
 	else:
 		return low
 
-def interpAFolder(sourcePath, minutes):
-	'''
-	params:
-		sourcePath: abs path, where the csv file in. like /Desktop/relative humidity1960-2017_grid_(13x13)
-		minutes: How many minutes have a value after interp.
-	Func:
-		Call MATLAB interp function.
-		By default, the targetPath will be decided by params(just change the resulation)
-	Attention:
-		The csv file must be grid format.
-	'''
-	os.chdir(sourcePath)
-
-	# get and creat save path
-	rootPath = '/'.join(sourcePath.split('/')[:-1]) + '/'
-	folder = sourcePath.split('/')[-1] # 'relative humidity1960-2017_grid_(13x13)'
-	gridShape = folder.split('_')[-1][1:-1] # '13x13'
-	n = 60 // minutes
-	newShapeX = (eval(gridShape.split('x')[0]) - 1) * n + 1
-	newShapeY = (eval(gridShape.split('x')[-1]) - 1) * n + 1
-	newFolder = '{0}_({1}x{2})'.format('_'.join(folder.split('_')[:-1]), newShapeX, newShapeY)
-	targetPath = rootPath + newFolder + '/'
-	if not os.path.exists(targetPath):
-		os.makedirs(targetPath)
-
-	# call matlab
-	eng = matlab.engine.start_matlab()
-	fileNamePattern = re.compile(r'.*.csv')
-	fileList = os.listdir()
-	for file in fileList:
-		if fileNamePattern.match(file):
-			eng.interpACSV(file, float(minutes), targetPath, nargout=0)
-
 class NcFile:
 	def __init__(self, fileName, rootPath):
 		self.rootPath = rootPath
@@ -101,10 +67,10 @@ class NcFile:
 		The information is included:
 				longitude and latitude(type: numpy.ndarray, dimension: 1)
 				observed value(type: numpy.ndarray)
-				observed value's demension: 3 or 4 
-				missingValue(must float, if the file doesn't define, it will prompt user to input)
-		'''	
+				observed value's demension: 3 or 4
+		'''
 		self.x, self.y = self.getLongiAndLati()
+		self.resolution = self.x[1] - self.x[0]
 		self.observedValue = self.getObservedValue() # will get missing_value, too
 		self.dimension = len(self.f.dimensions) 
 		# f.dimensions不要用于获取某个维度的大小，
@@ -113,10 +79,6 @@ class NcFile:
 		self.dateStrList = self.getTimeValue()
 		if(self.dimension == 4):
 			self.depthDataList = self.getDepthValue()
-		# if np.isnan(self.missingValue):
-		# 	print("There is no missing_value in this file: " + self.fileName)
-		# 	print("The observed value: **max: {0}**, **min: {1}**".format(np.nanmax(self.observedValue), np.nanmin(self.observedValue)))
-		# 	self.missingValue = float(eval(input("Please input a num to replace the missing_value: ")))
 
 	def getLongiAndLati(self):
 		'''
@@ -190,6 +152,9 @@ class NcFile:
 		return dateStringList
 
 	def getDepthValue(self):
+		'''
+		return a depth list, value in list is a float(without units)
+		'''
 		depthDataList = []
 		for key in self.f.variables.keys():
 			if key.lower() in ['depth', 'z']:
@@ -199,7 +164,16 @@ class NcFile:
 		return depthDataList
 
 	def getObservedValue(self):
-		'''获取所有实际测量的值，默认属性名不用以下名字：['X', 'Y', 'Z', 'T', 'lat', 'lon', 'depth']'''
+		'''
+		获取所有实际测量的值，默认属性名不用以下名字：['X', 'Y', 'Z', 'T', 'lat', 'lon', 'depth']
+		return ndarray of observedvalue, ndim == 3 or 4(depend on whether have depth)
+		关于missing_value(_FillValue)
+			nc文件中虽然显示NaN，但是missing_value(_FillValue)却不是NaNf，这是文件所定义的机制。
+			如果使用追加(a)模式修改这个属性的字段值为NaNf(np.nan)，那么显示的就不再是NaN了，而且定义的数据类型的最小值（一绘图就知道区别了）。
+			无论如何，读出来都不会是NaN。
+			综上nc文件实际上是没有定义NaN类型的（虽然会显示说缺失值是NaNf），官方社区有相关的回答。
+			因此需要在这里修改这些值为NaN方便后期使用。
+		'''
 		observedValue = []
 		for key in self.f.variables.keys():
 			if(key in ['T', 'X', 'Y', 'Z', 'lat', 'lon', 'time', 'depth']):
@@ -207,14 +181,12 @@ class NcFile:
 			else:
 				var = self.f.variables[key]
 				observedValue = var.data.astype(float)
-				self.missingValue = np.float(var.missing_value)
-				if not np.isnan(self.missingValue):
-					observedValue[observedValue == self.missingValue] = np.nan
+				missingValue = np.float(var.missing_value)
+				if not np.isnan(missingValue):
+					observedValue[observedValue == missingValue] = np.nan
 				if('add_offset' in dir(var) and 'scale_factor' in dir(var)): # 源数据经过处理，例如sst2960-2017.nc
 					# 不可以observedValue *= 1，因为这只是个指向文件数据而已，而数据是只读的。
 					observedValue = var.data.astype(float) * var.scale_factor + var.add_offset
-					self.missingValue *= var.scale_factor
-					self.missingValue += var.add_offset
 				break
 		return observedValue
 
@@ -315,7 +287,7 @@ class DataSelector:
 			print("No depth in this file!")
 			return
 		strSplitList = depthStr.split('-')
-		numPattern = '-?(([1-9]\d*\.\d*|0?\.\d*[1-9]\d*|0?\.0+|0)|([1-9]\d*))'
+		numPattern = r'-?(([1-9]\d*\.\d*|0?\.\d*[1-9]\d*|0?\.0+|0)|([1-9]\d*))'
 		numRegex = re.compile(numPattern)
 
 		if len(strSplitList) == 1:
@@ -351,6 +323,7 @@ def ncToCSVgrid(ncfile, dataselector=None):
 	dataInfo = {}
 	dataInfo["RootPath"] = ncfile.rootPath
 	dataInfo["DirsName"] = ncfile.fileName[:-3]
+	dataInfo["Resolution"] = str(ncfile.resolution).replace('.', 'p')
 	dateStringList = ncfile.dateStrList
 	if ncfile.dimension == 4:
 		depthList = ncfile.depthDataList
@@ -371,12 +344,14 @@ def ncToCSVgrid(ncfile, dataselector=None):
 
 if __name__ == '__main__':
 	start = time.clock()
-	rootPath = r'/Users/littlesec/Downloads'
+	rootPath = '/Users/littlesec/Desktop/毕业论文实现/new nc data'
+	'''
 	file = NcFile('ssh.nc', rootPath)
 	file.getFileInfo()
 	# print(file.dateStrList)
 	ds = DataSelector(file.dateStrList)
 	ds.selectByTime('2000-') # param can be 'yyyy' or 'yyyymm' or 't-t'(t can be yyyy or yyyymm or ignore one) 
 	ncToCSVgrid(file, ds)
+	'''
 	elapsed = (time.clock()-start)
 	print("run time: "+str(elapsed)+" s")
