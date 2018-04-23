@@ -14,12 +14,12 @@
 ## 前期文件准备
 1. 最初的原始文件依然是网盘上的文件。0.05度一个数据。
 2. 但已经裁剪了很多信息，代码直接使用的文件是[```sst_mask_cutlatlon.nc```](./sst_mask.nc)。只留下剩下数据：
-    + 经纬度范围：lat：21.25,37.75，lon：117.25,129.75
+    + 经纬度范围：lat：12.025,33.025，lon：109.475,131.075
     + 只保留了mask属性
 3. 以上工作使用一个命令行工具包完成。
     + 最初参考[StackOverflow](https://stackoverflow.com/questions/29135885/netcdf4-extract-for-subset-of-lat-lon)
     + 工具包为[nco](http://nco.sourceforge.net/nco.html#ncks-netCDF-Kitchen-Sink)
-    + 命令：```ncks -v mask -d lat,21.225,37.775 -d lon,117.225,129.775 20140101-UKMO-L4HRfnd-GLOB-v01-fv02-OSTIA.nc sst_mask.nc```
+    + 命令：```ncks -v mask -d lat,12.025,33.025 -d lon,109.475,131.075 20140101-UKMO-L4HRfnd-GLOB-v01-fv02-OSTIA.nc sst_mask.nc```
     + 命令抽象：```ncks -v [需要提取的属性名，空格分隔] -d lat,[开始纬度],[结束纬度] -d lon,[开始经度],[结束经度] [源nc文件] [目标nc文件]```
 4. 不懂为什么还保留了time属性。。。。
 4. 所截取的经纬度其实和需要的经纬度不太吻合，相差0.25度。这个后期再决定如何处理。

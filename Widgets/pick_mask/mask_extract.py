@@ -46,18 +46,18 @@ def mask(ncFileName, degree):
     point = np.rec.fromarrays([x, y])
     dt1 = pd.DataFrame(point.ravel())
     dt2 = pd.DataFrame(newMask.ravel())
-    pd.concat([dt1, dt2], axis=1).to_csv('mask_tuple_{0}.csv'.format(degree), index=False, header=header)
+    pd.concat([dt1, dt2], axis=1).to_csv('mask_tuple_{0}.csv'.format(str(degree).replace('.', 'p')), index=False, header=header)
 
     # column和index对于数字类型的传参或默认强制转换成float64。
     # 该文件中的lon和lat都是float32类型的。
     # 当float32转换成float64是容易出现精度问题的，因此需要先转换成字符串。
     # 已提交的issue: https://github.com/pandas-dev/pandas/issues/20778
-    pd.DataFrame(newMask, columns=[str(a) for a in lon], index=[str(a) for a in lat]).to_csv('mask_grid_{0}.csv'.format(degree))
+    pd.DataFrame(newMask, columns=[str(a) for a in lon], index=[str(a) for a in lat]).to_csv('mask_grid_{0}.csv'.format(str(degree).replace('.', 'p')))
     f.close()
 
 if __name__ == '__main__':
     # ncFileName = 'sst_mask_cutlatlon.nc'
-    degree = 0.25 # must one of [0.1, 0.2, 0.25, 0.5]
+    degree = 0.05 # must one of [0.05, 0.1, 0.2, 0.25, 0.5]
     # 以下代码获取nc文件名而已，可以上面直接使用硬编码
     currentdir = os.path.dirname(__file__)
     fileList = os.listdir(currentdir)
