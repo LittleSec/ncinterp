@@ -6,11 +6,6 @@ import time
 import ncinterp as ni
 import csvjsonwriteop as fop
 
-'''
-todo:
-写函数还是太怪了，另外有硬编码
-'''
-
 class DataProcessor:
 	def __init__(self, file):
 		self.x = file.x  # 源经度
@@ -62,6 +57,7 @@ class DataProcessor:
 
 	def writeCSV(self, dataInfo):
 		# grid: maybe can reuse code
+		
 		os.chdir(dataInfo["RootPath"])
 		dirsName = "{0}_grid_{1}".format(dataInfo["DirsName"], dataInfo['Resolution'])
 		if not os.path.exists(dirsName):
@@ -74,14 +70,15 @@ class DataProcessor:
 		for i in range(len(self.interpPoints)):
 			point = self.interpPoints[i]
 			self.interpDF[str(point[0])][point[1]]= self.interpValues[i] # c['118.675'][37.225]
-		self.interpDF.to_csv(fileName)
-
+		self.interpDF.to_csv(fileName, na_rep='NaN')
+		
 		# tuple:
+		# writeCSVtuple函数会去NaN。插值点是统一的，能保证不同时间深度所插值的点无论是顺序还是位置都一样，为了方便数据合并，这里不需要去NaN（如果有的话）
 		fop.writeCSVtuple(self.interpPoints, self.interpValues, dataInfo=dataInfo)
-		# head= ['lon', 'lat', 'value']
+		# header= ['lon', 'lat', 'value']
 		# dt1= pd.DataFrame(self.interpPoints)
-    	# dt2= pd.DataFrame(self.interpValues)
-		# pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header)
+		# dt2= pd.DataFrame(self.interpValues)
+		# pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
 
 	def __processAGroupData(self, timeIndex=0, depthIndex=0, degree=0.1):
 		'''这些nc文件的组织规律如下：
@@ -93,7 +90,7 @@ class DataProcessor:
 			z= self.observedValue[timeIndex]
 
 		self.filterNaN(sourceValues=z.ravel())
-		self.getInterpPointsAndDF(degree=degree)
+		
 		# interpData
 		self.interpValues= interpolate.griddata(self.noNaNPoints, self.noNaNValues, self.interpPoints, method='cubic')
 
@@ -109,6 +106,7 @@ class DataProcessor:
 		if ds is None:
 			ds = ni.DataSelector(self.dateStringList, self.depthList)
 		self.dataInfo['Resolution'] = str(degree).replace('.', 'p')
+		self.getInterpPointsAndDF(degree=degree)
 		if self.dimension == 4:
 			for i in ds.timeSelectList:
 				self.dataInfo["Time"]= self.dateStringList[i]
@@ -116,17 +114,21 @@ class DataProcessor:
 					self.dataInfo["Depth"]= self.depthList[j]
 					self.__processAGroupData(timeIndex=i, depthIndex=j, degree=degree)
 					self.writeCSV(self.dataInfo)
+					self.interpDF = self.interpDF.where(self.interpDF == 'hjx') # set all value to NaN
 		elif self.dimension == 3:
 			for i in ds.timeSelectList:
 				self.dataInfo["Time"]= self.dateStringList[i]
 				self.__processAGroupData(timeIndex=i, depthIndex=0, degree=degree)
 				self.writeCSV(self.dataInfo)
+				self.interpDF = self.interpDF.where(self.interpDF == 'hjx')
 
 if __name__ == '__main__':
 	'''
 	about running time:
 	ssh数据没有深度，时间从2000-2008年9年乘12个月，分辨率0.5-->0.1，耗时：342.44729099999995 s
-	salt数据集，有深度不筛选，时间也是9年乘12个月，分辨率0.5-->0.1，耗时：
+	salt数据集，有深度不筛选，时间也是9年乘12个月，分辨率0.5-->0.1，耗时：5655.504892 s
+	每组数据少一次读mask，时间为2519.5962029999996 s
+	分辨率0.5 --> 0.2，耗时：773.285275 s
 	'''
 	start = time.clock()
 	rootPath = r'/Users/littlesec/Desktop/毕业论文实现/new nc data'
@@ -135,9 +137,10 @@ if __name__ == '__main__':
 	# print(file.dateStrList)
 	ds = ni.DataSelector(file.dateStrList, file.depthDataList)
 	ds.selectByTime('2000-') # param can be 'yyyy' or 'yyyymm' or 't-t'(t can be yyyy or yyyymm or ignore one)
-	ni.ncToCSVgrid(file, ds)
+	ds.selectByDepth('-100')
+	# ni.ncToCSVgrid(file, ds)
 	dp = DataProcessor(file)
-	dp.processARangeData(ds)
+	dp.processARangeData(ds, degree=0.2)
 	file.f.close()
 	elapsed = (time.clock()-start)
 	print("run time: "+str(elapsed)+" s")
