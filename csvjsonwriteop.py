@@ -77,14 +77,14 @@ def writeCSVtuple(points, values, dataInfo=None, absFileName=None):
 			fileName = r'{0}.csv'.format(dataInfo['Time'])
 
 	header = ['lon', 'lat', 'value']
-	point1 = []
-	value1 = []
-	for i in range(len(values)):
-		if not np.isnan(values[i]): # 在这里对整个values判NaN不起作用，不知道为啥
-			point1.append(points[i])
-			value1.append(values[i])
-	dt1= pd.DataFrame(point1)
-	dt2= pd.DataFrame(value1)
+	# point1 = []
+	# value1 = []
+	# for i in range(len(values)):
+	# 	if not np.isnan(values[i]): # 在这里对整个values判NaN不起作用，不知道为啥
+	# 		point1.append(points[i])
+	# 		value1.append(values[i])
+	dt1= pd.DataFrame(points)
+	dt2= pd.DataFrame(values)
 	pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
 
 def gridToTupleCSV(gridCSVfileName, savePath):
@@ -163,3 +163,17 @@ def gridCsvToJSON(gridCSVfileName, savePath):
 	yi = csv[1:,0]
 	value = csv[1:, 1:]
 	writeJSON(xi, yi, value, dataInfo=dataInfo)
+
+def setSpacesToNaN(path):
+	'''
+	a func can replace spaces in all csv files in the path with NaN
+	just a script
+	'''
+	os.chdir(path)
+	fileList = os.listdir()
+	for file in fileList:
+		if file[-4:] == '.csv':
+			pd.read_csv(file, index_col=0).to_csv(file, na_rep='NaN')
+
+if __name__ == '__main__':
+	setSpacesToNaN('/Users/littlesec/Desktop/毕业论文实现/new nc data/v meridional velocity_grid_0p1')
