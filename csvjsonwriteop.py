@@ -83,8 +83,8 @@ def writeCSVtuple(points, values, dataInfo=None, absFileName=None):
 	# 	if not np.isnan(values[i]): # 在这里对整个values判NaN不起作用，不知道为啥
 	# 		point1.append(points[i])
 	# 		value1.append(values[i])
-	dt1= pd.DataFrame(points)
-	dt2= pd.DataFrame(values)
+	dt1= pd.DataFrame(points) # point1
+	dt2= pd.DataFrame(values) # value1
 	pd.concat([dt1, dt2], axis=1).to_csv(fileName, index=False, header=header, na_rep='NaN')
 
 def gridToTupleCSV(gridCSVfileName, savePath):
