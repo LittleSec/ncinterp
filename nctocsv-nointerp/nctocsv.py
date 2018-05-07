@@ -138,9 +138,9 @@ class NcFile:
         for attr, value in self.observedValue.items():
             os.chdir(self.rootPath)
             if self.depth is None:
-                folder = attr
+                folder = attr + '_grid'
             else:
-                folder = attr + ',' + self.depth
+                folder = attr + ',' + self.depth + '_grid'
             if not os.path.exists(folder):
                 os.makedirs(folder)
             os.chdir(folder)
