@@ -70,13 +70,3 @@ if __name__ == '__main__':
             dealAFolderG2T(dirt)
             print("run time: "+str(time.clock()-start)+" s")
             start = time.clock()
-            
-        
-    
-
-# fileName = ''
-
-# df1 = pd.read_csv(fileName)
-# df2 = pd.read_csv(fileName)
-
-# df3 = pd.merge(df1, df2, how='inner', on=['lon', 'lat'])
