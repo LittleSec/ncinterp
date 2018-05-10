@@ -3,7 +3,7 @@ import numpy as np
 import os
 import time
 
-ROOTPATH = '/Users/openmac/Downloads/LittleSec/'
+ROOTPATH = '/Users/openmac/Downloads/new nc data/'
 ATTRLIST_ALL = ['salinity', 'water_temp', 'water_u', 'water_v', 'surf_el']
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 
@@ -57,7 +57,7 @@ def dealAattrG2T(attr):
         tarPath = srcPath.replace('_grid', '_tuple')
         if not os.path.exists(tarPath):
             os.makedirs(tarPath)
-        for file in os.chdir(srcPath):
+        for file in os.listdir(srcPath):
             if file[-4:] == '.csv':
                 grid2Tuple(file, srcPath, tarPath, attr)
 
@@ -69,5 +69,3 @@ if __name__ == '__main__':
         dealAattrG2T(attr)
         print("run time: "+str(time.clock()-start)+" s")
         start = time.clock()
-
-            

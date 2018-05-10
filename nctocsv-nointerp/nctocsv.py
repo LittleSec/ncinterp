@@ -13,7 +13,7 @@ class NcFile:
     x = []
     y = []
     dateTimeList = []
-    depth = '0m'
+    depth = None
     resolution = 2 / 25
     observedValue = {}  # 可能有多个属性
 
