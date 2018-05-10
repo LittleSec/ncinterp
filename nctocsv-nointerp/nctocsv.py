@@ -88,7 +88,7 @@ class NcFile:
         if dateTimeUnits.split()[0] == 'hours':
             for dtn in dateTimeNumList:
                 dt = stdt + datetime.timedelta(hours=dtn)  # type is datetime
-                dateTimeStrList.append(dt.strftime('%Y-%m-%d %H'))
+                dateTimeStrList.append(dt.strftime('%Y-%m-%d'))
 
         return dateTimeStrList
 
@@ -133,14 +133,17 @@ class NcFile:
                 self.observedValue[key] = observedValue
 
     def toCSVgrid(self):
+        '''
+        output:
+            命名规则：./attr_tuple/(depth/)yyyy-mm-dd.csv
+        '''
         if self.x == [] or self.y == [] or self.dateTimeList == [] or self.observedValue == {}:
             self.getFileInfo()
         for attr, value in self.observedValue.items():
             os.chdir(self.rootPath)
-            if self.depth is None:
-                folder = attr + '_grid'
-            else:
-                folder = attr + ',' + self.depth + '_grid'
+            folder = attr + '_grid'
+            if not self.depth is None:
+                folder = '/'.join([folder, self.depth])
             if not os.path.exists(folder):
                 os.makedirs(folder)
             os.chdir(folder)
