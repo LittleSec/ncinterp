@@ -5,7 +5,7 @@ import os
 import datetime
 import time
 
-ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/'
+ROOTPATH = '/Users/openmac/Downloads/new nc data'
 
 class NcFile:
     rootPath = ROOTPATH
@@ -104,7 +104,7 @@ class NcFile:
                 depthUnits = self.f.variables[key].units
                 break
         if depthList is None: # ssh 没有深度
-            return
+            return None
         return str(round(depthList[0], 1)) + depthUnits
 
     def getObservedValue(self):
@@ -162,6 +162,8 @@ if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
     fileList = os.listdir()
+    # nc = NcFile('170201-170531_ssh.nc')
+    # nc.toCSVgrid()
     for file in fileList:
         if file[-3:] == '.nc':
             nc = NcFile(file)
