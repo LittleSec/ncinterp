@@ -5,7 +5,7 @@ import os
 import datetime
 import time
 
-ROOTPATH = '/Users/openmac/Downloads/new nc data'
+ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/new nc data'
 
 class NcFile:
     rootPath = ROOTPATH
@@ -162,11 +162,11 @@ if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
     fileList = os.listdir()
-    # nc = NcFile('170201-170531_ssh.nc')
-    # nc.toCSVgrid()
-    for file in fileList:
-        if file[-3:] == '.nc':
-            nc = NcFile(file)
-            nc.toCSVgrid()
-            print("run time: "+str(time.clock()-start)+" s")
-            start = time.clock()
+    nc = NcFile('160501-170131_ssh.nc')
+    nc.toCSVgrid()
+    # for file in fileList:
+    #     if file[-3:] == '.nc':
+    #         nc = NcFile(file)
+    #         nc.toCSVgrid()
+    #         print("run time: "+str(time.clock()-start)+" s")
+    #         start = time.clock()

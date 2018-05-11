@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import time
 
-RESOLUTION = 0.4 # 2/25*6 --> 0.4
+RESOLUTION = 0.5 # 2/25*6 --> 0.5
 ROOTPATH = '/Users/openmac/Downloads/new nc data/速度矢量场数据/'
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 
@@ -18,6 +18,7 @@ def culEndPoint(absfileName):
     scaleFactor = RESOLUTION/maxuv
     df['lon1'] = df['lon'] + df['water_u'] * scaleFactor
     df['lat1'] = df['lat'] + df['water_v'] * scaleFactor
+    df['scalar'] = np.sqrt(df['water_u']**2 + df['water_v']**2)
     df.to_csv(absfileName, index=False, na_rep='NaN')
 
 if __name__ == '__main__':

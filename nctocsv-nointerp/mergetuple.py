@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime
 
-ROOTPATH = '/Users/openmac/Downloads/new nc data/'
+ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/new nc data/'
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 ATTRLIST = ['salinity', 'water_temp', 'water_u', 'water_v']
 ATTRLIST_ALL = ['salinity', 'water_temp', 'water_u', 'water_v', 'surf_el']
