@@ -4,8 +4,9 @@ import pandas as pd
 import os
 import datetime
 import time
+from multiprocessing import Pool
 
-ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/new nc data'
+ROOTPATH = '/Users/littlesec/Downloads/nc1/nc2/'
 
 class NcFile:
     rootPath = ROOTPATH
@@ -15,6 +16,7 @@ class NcFile:
     dateTimeList = []
     depth = None
     resolution = 2 / 25
+    dateFlagList = []
     observedValue = {}  # 可能有多个属性
 
     def __init__(self, fileName, rootPath=ROOTPATH):
@@ -89,6 +91,10 @@ class NcFile:
             for dtn in dateTimeNumList:
                 dt = stdt + datetime.timedelta(hours=dtn)  # type is datetime
                 dateTimeStrList.append(dt.strftime('%Y-%m-%d'))
+                if dtn % 12 == 0 and dtn % 24 != 0:
+                    self.dateFlagList.append(True)
+                else:
+                    self.dateFlagList.append(False)
 
         return dateTimeStrList
 
@@ -148,6 +154,8 @@ class NcFile:
                 os.makedirs(folder)
             os.chdir(folder)
             for i in range(len(self.dateTimeList)):
+                if self.dateFlagList[i] == False:
+                    continue
                 fileName = self.dateTimeList[i] + '.csv'
                 if self.depth is None:
                     pd.DataFrame(value[i], columns=self.x, index=self.y).to_csv(
@@ -157,16 +165,32 @@ class NcFile:
                     pd.DataFrame(value[i][0], columns=self.x, index=self.y).to_csv(
                         fileName, na_rep='NaN')
 
+# 尝试多线程
+def func(filename):
+    start = time.clock()
+    nc = NcFile(filename)
+    nc.toCSVgrid()
+    print("run time: "+str(time.clock()-start)+" s")
 
 if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
+    # nc = NcFile('150501-160430_surf_el.nc')
+    # nc.toCSVgrid()
+    # print("run time: "+str(time.clock()-start)+" s")
+
     fileList = os.listdir()
-    nc = NcFile('160501-170131_ssh.nc')
-    nc.toCSVgrid()
-    # for file in fileList:
-    #     if file[-3:] == '.nc':
-    #         nc = NcFile(file)
-    #         nc.toCSVgrid()
-    #         print("run time: "+str(time.clock()-start)+" s")
-    #         start = time.clock()
+    # p = Pool(len(fileList))
+    for file in fileList:
+        if file[-3:] == '.nc':
+
+    #         p.apply_async(func, (file,))
+    # p.close()
+    # p.join()
+    # print("run time: "+str(time.clock()-start)+" s")
+
+            print("now: " + file)
+            nc = NcFile(file)
+            nc.toCSVgrid()
+            print("run time: "+str(time.clock()-start)+" s")
+            start = time.clock()

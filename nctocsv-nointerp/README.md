@@ -7,12 +7,14 @@
 4. 使用:
     + 修改ROOTPATH，把需要处理的nc文件放到该目录下即可，生成的文件会在该目录下。
     + 注意会处理全部nc文件
+    + 有多进程的代码，可以选择尝试，效果不明显，时间打印也有问题。
 1. 代码用于将nc文件导出grid形式的csv
 2. nc文件的若干说明：
-    + 时间单位是hours since yyyy-mm-dd
+    + 时间单位是hours since yyyy-mm-dd 00:00
     + 要么没深度要么只有一个深度
     + 时空维度顺序为：[time][depth]
     + 除了经纬度时空外允许有多个属性
+    + 只选择导出12点的数据（12点的判断是基于since的时间必须是00:00）
 2. 生成csv文件组织形式```./attr_tuple/(depth/)yyyy-mm-dd.csv```
 
 ### ```gridtotuple```
