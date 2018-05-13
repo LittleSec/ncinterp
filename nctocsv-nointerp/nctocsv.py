@@ -6,7 +6,44 @@ import datetime
 import time
 from multiprocessing import Pool
 
-ROOTPATH = '/Users/littlesec/Downloads/nc1/nc2/'
+ROOTPATH = '/Users/littlesec/Downloads/nc1/'
+
+DIFF1 = [
+    '2014-07-08', '2014-07-27', '2014-08-02', '2014-08-05', '2014-09-07',
+    '2014-09-20', '2014-10-06', '2014-10-27', '2014-12-09', '2014-12-13',
+    '2014-12-21', '2015-01-05', '2015-01-07', '2015-01-21', '2015-01-26',
+    '2015-01-28', '2015-02-09', '2015-02-23', '2015-02-25', '2015-03-06',
+    '2015-03-18', '2015-03-21', '2015-03-28', '2015-03-30', '2015-04-03',
+    '2015-04-06', '2015-04-08', '2015-04-10', '2015-04-11', '2015-04-12',
+    '2015-04-13', '2015-04-15', '2015-04-19', '2015-04-22', '2015-04-23',
+    '2015-04-25', '2015-04-27', '2015-05-07', '2015-05-17', '2015-05-31',
+    '2015-06-04', '2015-06-08', '2015-07-08', '2015-07-21', '2015-08-06',
+    '2015-08-27', '2015-10-09', '2015-10-13', '2015-10-21', '2015-11-05',
+    '2015-11-07', '2015-11-21', '2015-11-26', '2015-11-28', '2015-12-10',
+    '2015-12-24', '2015-12-26', '2016-01-04', '2016-01-16', '2016-01-22',
+    '2016-01-27', '2016-01-31', '2016-02-03', '2016-02-05', '2016-02-07',
+    '2016-02-08', '2016-02-09', '2016-02-11', '2016-02-15', '2016-02-18',
+    '2016-02-19', '2016-02-22', '2016-02-25', '2016-03-06', '2016-03-07',
+    '2016-03-13', '2016-03-27', '2016-03-31', '2016-04-14'
+]
+
+DIFF2 = [
+    '2015-05-17', '2015-05-31', '2015-06-08', '2016-01-22', '2016-02-19',
+    '2016-02-25', '2016-03-06', '2016-03-07', '2016-04-14'
+]
+
+DIFF3 = [
+    '2015-06-18', '2015-09-11', '2015-10-01', '2015-10-31', '2015-12-05',
+    '2015-12-15'
+]
+
+DIFF4 = [
+    '2015-05-17', '2015-05-31', '2015-06-08', '2016-01-22', '2016-02-25',
+    '2016-03-06', '2016-03-07', '2016-04-14'
+]
+
+DIFF5 = ['2016-03-07'] # surf_el这一天没有12,15点的数据
+
 
 class NcFile:
     rootPath = ROOTPATH
@@ -34,7 +71,8 @@ class NcFile:
             os.chdir(self.rootPath)  #进入工作目录
             return Dataset(self.fileName)
         except FileNotFoundError as err:
-            print(err, '\nPlease check your directory and file are both existed!')
+            print(err,
+                  '\nPlease check your directory and file are both existed!')
             return None
 
     def getFileInfo(self):
@@ -85,13 +123,23 @@ class NcFile:
                 break
 
         dateTimeStrList = []  # 该序列每个元素都是时间直观的字符串
-        startDateTimeStr = ' '.join(dateTimeUnits.split()[-2:])  # -1是时间,-2是日期,'2000-01-01 00:00:00'
-        stdt = datetime.datetime.strptime(startDateTimeStr, '%Y-%m-%d %H:%M:%S')
+        startDateTimeStr = ' '.join(
+            dateTimeUnits.split()[-2:])  # -1是时间,-2是日期,'2000-01-01 00:00:00'
+        stdt = datetime.datetime.strptime(startDateTimeStr,
+                                          '%Y-%m-%d %H:%M:%S')
         if dateTimeUnits.split()[0] == 'hours':
             for dtn in dateTimeNumList:
                 dt = stdt + datetime.timedelta(hours=dtn)  # type is datetime
-                dateTimeStrList.append(dt.strftime('%Y-%m-%d'))
-                if dtn % 12 == 0 and dtn % 24 != 0:
+                ymd = dt.strftime('%Y-%m-%d')
+                dateTimeStrList.append(ymd)
+                # DIFF存放没有12点数据的日期，则取15点或9点的
+                # if ymd in DIFF5 and dtn % 24 == 15:
+                #     self.dateFlagList.append(True)
+                #     print(ymd)
+                # else:
+                #     self.dateFlagList.append(False)
+                # 只提取某天12点的数据
+                if dtn % 24 == 12:
                     self.dateFlagList.append(True)
                 else:
                     self.dateFlagList.append(False)
@@ -109,7 +157,7 @@ class NcFile:
                 depthList = self.f.variables[key][:]
                 depthUnits = self.f.variables[key].units
                 break
-        if depthList is None: # ssh 没有深度
+        if depthList is None:  # ssh 没有深度
             return None
         return str(round(depthList[0], 1)) + depthUnits
 
@@ -158,19 +206,23 @@ class NcFile:
                     continue
                 fileName = self.dateTimeList[i] + '.csv'
                 if self.depth is None:
-                    pd.DataFrame(value[i], columns=self.x, index=self.y).to_csv(
-                        fileName, na_rep='NaN')
+                    pd.DataFrame(
+                        value[i], columns=self.x, index=self.y).to_csv(
+                            fileName, na_rep='NaN')
                 else:
                     # value.shape: (552, 1, 263, 271)
-                    pd.DataFrame(value[i][0], columns=self.x, index=self.y).to_csv(
-                        fileName, na_rep='NaN')
+                    pd.DataFrame(
+                        value[i][0], columns=self.x, index=self.y).to_csv(
+                            fileName, na_rep='NaN')
+
 
 # 尝试多线程
 def func(filename):
     start = time.clock()
     nc = NcFile(filename)
     nc.toCSVgrid()
-    print("run time: "+str(time.clock()-start)+" s")
+    print("run time: " + str(time.clock() - start) + " s")
+
 
 if __name__ == '__main__':
     start = time.clock()
@@ -184,13 +236,15 @@ if __name__ == '__main__':
     for file in fileList:
         if file[-3:] == '.nc':
 
-    #         p.apply_async(func, (file,))
-    # p.close()
-    # p.join()
-    # print("run time: "+str(time.clock()-start)+" s")
+            #         p.apply_async(func, (file,))
+            # p.close()
+            # p.join()
+            # print("run time: "+str(time.clock()-start)+" s")
 
             print("now: " + file)
             nc = NcFile(file)
             nc.toCSVgrid()
-            print("run time: "+str(time.clock()-start)+" s")
+            nc.f.close()
+            del nc
+            print("run time: " + str(time.clock() - start) + " s")
             start = time.clock()

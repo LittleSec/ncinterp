@@ -88,6 +88,12 @@ def datelist(beginDate, endDate):
     date_l = [datetime.strftime(x, '%Y-%m-%d') for x in list(pd.date_range(start=beginDate, end=endDate))]
     return date_l
 
+def finddiff(path):
+    dateset = set(datelist('20140701', '20160430'))
+    fileset = set([file[:-4] for file in os.listdir(path)])
+    diff = list(dateset.difference(fileset))
+    print(diff)
+
 if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
