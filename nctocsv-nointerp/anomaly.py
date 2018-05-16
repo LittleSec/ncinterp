@@ -58,8 +58,8 @@ def calAnomaly(srcFile, srcPath, tarPath, meanPath):
 YEARS_MONTHS_DICT = {
     "2014": [7, 8, 9, 10, 11, 12],
     "2015": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-    "2016": [1, 2, 3, 4]#, 5, 6, 7, 8, 9, 10, 11, 12],
-    # "2017": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    "2016": [5, 6, 7, 8, 9, 10, 11, 12],
+    "2017": [1, 2, 3, 4, 5, 6, 7, 8, 9]
 }
 
 
@@ -85,5 +85,6 @@ if __name__ == '__main__':
     if not os.path.exists(anomalyPath):
         os.makedirs(anomalyPath)
     for file in os.listdir(srcPath):
-        calAnomaly(file, srcPath, anomalyPath, meanPath)
+        if file[-4:] == '.csv':
+            calAnomaly(file, srcPath, anomalyPath, meanPath)
     print("run time: "+str(time.clock()-start)+" s")
