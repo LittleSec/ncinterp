@@ -1,6 +1,9 @@
 import numpy as np
+import pandas as pd
 import os
-import csvjsonwriteop
+import time
+
+ROOTPATH = '/Users/openmac/Downloads/'
 
 g = 9.8 # 重力加速度，单位m/s^2
 w = 7.292e-5 # 自转角速度，单位rad/s
@@ -71,10 +74,12 @@ def OkuboWeiss(U, V, diffX, diffY):
     q = Ux[1:,1:]**2 + Vy[1:,1:]**2 - 2*Ux[1:,1:]*Vy[1:,1:] + 4*Vx[2:]*Uy[:,2:]
     return q
 
-def culAndSaveOWparam(slaFile, savePath):
+def culAndSaveOWparam(slaFile, srcPath, tarPath):
     '''
     params:
         slaFile: a csv(grid) file name(without path)
+        srcPath: where sla.csv in
+        tarPath: save path
     func:
         Calculate the OkuboWeiss paramter and save in a grid csv.
         After calculating, the shape of grid will be smaller: n*n-->(n-1)*(n-1).
@@ -83,7 +88,7 @@ def culAndSaveOWparam(slaFile, savePath):
         There is no code to check whether the file is grid format and to check whether python is in the right path.
         Please ensure these two points before call this function.
     '''
-    slaCSV = np.genfromtxt(slaFile, delimiter=',')
+    slaCSV = np.genfromtxt('/'.join([srcPath, slaFile]), delimiter=',')
     x = slaCSV[0,1:]
     y = slaCSV[1:,0]
     sla = slaCSV[1:,1:]
@@ -93,33 +98,20 @@ def culAndSaveOWparam(slaFile, savePath):
     diffX = diffX.reshape((diffX.shape[0], 1)) # 是一个ndarray，列向量
     diffY = (y[1] - y[0]) * 111e3 # 是个数
 
-    ow = OkuboWeiss(u, v, diffX, diffY)
-    # write csv
-    absFileName = savePath + '/' + slaFile
-    csvjsonwriteop.writeCSVgrid(x[2:], y[2:], ow, dataInfo=None, absFileName=absFileName)
+    ow = OkuboWeiss(u, v, diffX, diffY) * 1e10 # 数值太小了，乘个因子，记得转换单位。
+
+    pd.DataFrame(ow, columns=x[2:], index=y[2:]).to_csv('/'.join([tarPath, slaFile]), na_rep='NaN')
     # convenience to test(plot)
     # return ow
 
-def processAFolderOW(rootPath, salFolder):
-    '''
-    attention:
-        There is no code to check files' name in uFolder and vFolder are same.
-        Please ensure that before call this function.
-    salFolder: ANOMALY_sea_surface_height1960-2008_grid_(33x25)
-    saveFolder: OkuboWeiss_(13x13)
-    '''
-    os.chdir(rootPath)
-    owFolder = 'OkuboWeiss_' + salFolder.split('_')[-1] # -1 is '(13x13)'
+if __name__ == '__main__':
+    start = time.clock()
+    os.chdir(ROOTPATH)
+    slaFolder = 'sla_grid'
+    owFolder = 'ow_grid'
     if not os.path.exists(owFolder):
         os.makedirs(owFolder)
-    savePath = rootPath + '/' + owFolder
-    os.chdir(salFolder)
-    fileList = os.listdir()
-    for file in fileList:
+    for file in os.listdir(slaFolder):
         if file[-4:] == '.csv':
-            culAndSaveOWparam(file, savePath)
-
-if __name__ == '__main__':
-    rootPath = '/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new'
-    salFolder = 'ANOMALY_sea_surface_height1960-2008_grid_(33x25)'
-    processAFolderOW(rootPath, salFolder)
+            culAndSaveOWparam(file, slaFolder, owFolder)
+    print("run time: "+str(time.clock()-start)+" s") # 1200 files about 200s
