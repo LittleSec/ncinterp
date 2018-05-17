@@ -1,6 +1,11 @@
 import numpy as np
 import os
-import csvjsonwriteop
+import pandas as pd
+import time
+
+ROOTPATH = '/Users/openmac/Downloads/'
+RESOLUTION = 0.08 # 2/25 instead of (y[1] - y[0]) or (x[1] - x[0])
+DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 
 def diffu(u):
     for i in range(np.shape(u)[1]-1, 0, -1): # 考虑到右边界数据比左边界多，所以尽可能保留右部数据
@@ -41,11 +46,13 @@ def OkuboWeiss(U, V, diffX, diffY):
 x: longitude经度 * cos(y) * 111e3 --> m
 y: latitude纬度 * 111e3 --> m
 '''
-def culAndSaveOWparam(uFile, vFile, savePath):
+def culAndSaveOWparam(file, srcUpath, srcVpath, tarPath):
     '''
     params:
-        uFile: grid csv file name(abs path), eastward_sea_water_velocity, ZONAL VELOCITY
-        vFile: grid csv file name(abs path), northward_sea_water_velocity, MERIDIONAL VELOCITY
+        file: grid csv file name(u,v are the same)
+        srcUpath: where u.csv in
+        srcUpath: where v.csv in
+        tarPath: save path
     func:
         Calculate the OkuboWeiss paramter and save in a grid csv.
         After calculating, the shape of grid will be smaller: n*n-->(n-1)*(n-1).
@@ -54,66 +61,36 @@ def culAndSaveOWparam(uFile, vFile, savePath):
         There is no code to check whether the file is grid format and to check the x or y in two file are same.
         Please ensure these two points before call this function.
     '''
-    csvU = np.genfromtxt(uFile, delimiter=',')
-    csvV = np.genfromtxt(vFile, delimiter=',')
+    csvU = np.genfromtxt('/'.join([srcUpath, file]), delimiter=',')
+    csvV = np.genfromtxt('/'.join([srcVpath, file]), delimiter=',')
     x = csvU[0,1:]
     y = csvU[1:,0]
-    u = csvU[1:,1:]
-    v = csvV[1:,1:]
-    diffX = (x[1] - x[0]) * 111e3 * np.cos(np.radians(y))
-    diffX = diffX.reshape((diffX.shape[0], 1)) # 转换成列向量
-    diffY = (y[1] - y[0]) * 111e3
-    ow = OkuboWeiss(u, v, diffX, diffY)
+    u = np.round(csvU[1:,1:], 6) # 有效位只有6位，是float型(c语言的float)
+    v = np.round(csvV[1:,1:], 6)
+    diffX = RESOLUTION * 111e3 * np.cos(np.radians(y))
+    diffX = diffX.reshape((diffX.shape[0], 1)) # 转换成列向量, np.transport()转置函数对一维数组不起作用
+    diffY = RESOLUTION * 111e3
+    ow = OkuboWeiss(u, v, diffX, diffY) * 1e11
     # write csv
-    csvjsonwriteop.writeCSVgrid(x[1:], y[1:], ow, dataInfo=None, absFileName=savePath)
+    pd.DataFrame(ow, columns=x[1:], index=y[1:]).to_csv('/'.join([tarPath, file]), na_rep='NaN')
+    
     # convenience to test(plot)
     # return ow
 
-def processAFolderOW(rootPath, uFolder, vFolder):
-    '''
-    attention:
-        There is no code to check files' name in uFolder and vFolder are same.
-        Please ensure that before call this function.
-    owFolder: OkuboWeiss_(13x13)
-    '''
-    os.chdir(rootPath + '/' + uFolder)
-    fileList = os.listdir()
-    os.chdir('..')
-    owFolder = 'OkuboWeiss_' + uFolder.split('_')[-1] # -1 is '(13x13)'
-    if not os.path.exists(owFolder):
-        os.mkdir(owFolder)
-    owAbsPath = rootPath + '/' + owFolder
-    for file in fileList:
-        if file[-4:] == '.csv':
-            uFile = './' + uFolder + '/' + file
-            vFile = './' + vFolder + '/' + file
-            savePath = owAbsPath + '/' + file
-            culAndSaveOWparam(uFile, vFile, savePath)
-
 if __name__ == '__main__':
-    rootPath = '/Users/littlesec/Desktop/毕业论文实现/SODA v2p2p4 new'
-    uFolder = '200m_zonal_velocity1960-2008_grid_(193x145)'
-    vFolder = '200m_meridional_velocity1960-2008_grid_(193x145)'
-    processAFolderOW(rootPath, uFolder, vFolder)
+    start = time.clock()
+    os.chdir(ROOTPATH)
+    uFolder = 'water_u_grid'
+    vFolder = 'water_v_grid' # 默认csv文件名数量和名字都一致
+    owFolder = 'ow_grid'
 
-'''
-[
-    [{
-        "coord" : [lon, lat],
-        "value" : value
-    },
-    {
-        "coord" : [lon, lat],
-        "value" : value
-    },
-    .
-    .
-    .
-    {
-        "coord" : [lon, lat],
-        "value" : value
-    }]
-]
-'''
+    for depth in DEPTHLIST:
+        nowOWpath = '/'.join([owFolder, depth])
+        if not os.path.exists(nowOWpath):
+            os.makedirs(nowOWpath)
+        for file in os.listdir('/'.join([uFolder, depth])):
+            if file[-4:] == '.csv':
+                culAndSaveOWparam(file, '/'.join([uFolder, depth]), '/'.join([vFolder, depth]), nowOWpath)
+        print("run time: "+str(time.clock()-start)+" s")
 
     
