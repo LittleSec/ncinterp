@@ -6,7 +6,7 @@ import os
 import numpy as np
 import time
 
-ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/OceanVisualizationD3/oceandata'
+ROOTPATH = '/Users/openmac/Downloads/LittleSec/OceanVisualizationD3/oceandata'
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 
 def floatToStr(num):
@@ -44,5 +44,5 @@ if __name__ == '__main__':
     for file in os.listdir(depth):
         if file[-4:] == '.csv':
             ddToll(file, depth, depth)
-        print("run time: "+str(time.clock()-start)+" s")
+        print("now the file is " + file + " run time: "+str(time.clock()-start)+" s")
         start = time.clock()
