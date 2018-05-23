@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime
 
-ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/new nc data/'
+ROOTPATH = '/Users/openmac/Downloads/LittleSec/OceanVisualizationD3/oceandata'
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 ATTRLIST = ['salinity', 'water_temp', 'water_u', 'water_v']
 ATTRLIST_ALL = ['salinity', 'water_temp', 'water_u', 'water_v', 'surf_el']
@@ -94,13 +94,28 @@ def finddiff(path):
     diff = list(dateset.difference(fileset))
     print(diff)
 
+
+def attrMergeInTuple(srcFile, srcPath, tarPath):
+    dt1 = pd.read_csv('/'.join([srcPath, srcFile]))
+    # dt1['sla'] = dt1['sla'] * 100
+    dt2 = pd.read_csv('/'.join([tarPath, srcFile]))
+    dt2 = pd.merge(dt2, dt1, how='inner', on=['lon', 'lat'])
+    dt2.round(6).to_csv('/'.join([tarPath, srcFile]), index=False, na_rep='NaN')
+
 if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
-    fileList = os.listdir('surf_el_tuple')
+    # fileList = os.listdir('surf_el_tuple')
+    # for depth in DEPTHLIST:
+    #     for file in fileList:
+    #         if file[-4:] == '.csv':
+    #             mergeAttr(file[:-4], depth)
+    #     print("run time: "+str(time.clock()-start)+" s")
+    #     start = time.clock()
+
+    srcPath = 'ow_tuple'
     for depth in DEPTHLIST:
-        for file in fileList:
-            if file[-4:] == '.csv':
-                mergeAttr(file[:-4], depth)
+        for file in os.listdir('/'.join([srcPath, depth])):
+            attrMergeInTuple(file, '/'.join([srcPath, depth]), depth)
         print("run time: "+str(time.clock()-start)+" s")
         start = time.clock()

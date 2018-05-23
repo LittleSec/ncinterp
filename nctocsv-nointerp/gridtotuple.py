@@ -3,7 +3,7 @@ import numpy as np
 import os
 import time
 
-ROOTPATH = '/Users/littlesec/Desktop/毕业论文实现/new nc data/'
+ROOTPATH = '/Users/openmac/Downloads/LittleSec/OceanVisualizationD3/oceandata'
 ATTRLIST_ALL = ['salinity', 'water_temp', 'water_u', 'water_v', 'surf_el']
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 
@@ -48,10 +48,10 @@ def dealAattrG2T(attr):
     #     print("if you ensure files in sourceFolder is grid, please rename the sourceFolder end with '_grid'!")
     #     return
 
-    if attr != 'surf_el':
+    if attr not in ['surf_el', 'sla']:
         srcPathList = ['/'.join([attr+'_grid', depth]) for depth in DEPTHLIST]
     else:
-        srcPathList = ['surf_el_grid']
+        srcPathList = [attr + '_grid', ]
 
     for srcPath in srcPathList:
         tarPath = srcPath.replace('_grid', '_tuple')
@@ -65,7 +65,11 @@ if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
 
-    for attr in ATTRLIST_ALL:
-        dealAattrG2T(attr)
-        print("run time: "+str(time.clock()-start)+" s")
-        start = time.clock()
+    # for attr in ATTRLIST_ALL:
+    #     dealAattrG2T(attr)
+    #     print("run time: "+str(time.clock()-start)+" s")
+    #     start = time.clock()
+
+    dealAattrG2T('ow')
+    print("run time: "+str(time.clock()-start)+" s")
+    start = time.clock()
