@@ -96,9 +96,11 @@ def finddiff(path):
 
 
 def attrMergeInTuple(srcFile, srcPath, tarPath):
+    '''
+    src合并到tar
+    '''
     dt1 = pd.read_csv('/'.join([srcPath, srcFile]))
-    # dt1['sla'] = dt1['sla'] * 100
-    dt2 = pd.read_csv('/'.join([tarPath, srcFile]))
+    dt2 = pd.read_csv('/'.join([tarPath, srcFile])).drop(columns=['sla'])
     dt2 = pd.merge(dt2, dt1, how='inner', on=['lon', 'lat'])
     dt2.round(6).to_csv('/'.join([tarPath, srcFile]), index=False, na_rep='NaN')
 
@@ -113,9 +115,9 @@ if __name__ == '__main__':
     #     print("run time: "+str(time.clock()-start)+" s")
     #     start = time.clock()
 
-    srcPath = 'ow_tuple'
+    srcPath = 'sla_tuple'
     for depth in DEPTHLIST:
-        for file in os.listdir('/'.join([srcPath, depth])):
-            attrMergeInTuple(file, '/'.join([srcPath, depth]), depth)
+        for file in os.listdir(srcPath):
+            attrMergeInTuple(file, srcPath, depth)
         print("run time: "+str(time.clock()-start)+" s")
         start = time.clock()
