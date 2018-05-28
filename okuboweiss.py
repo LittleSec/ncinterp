@@ -6,12 +6,15 @@ import time
 ROOTPATH = '/Users/openmac/Downloads/'
 RESOLUTION = 0.08 # 2/25 instead of (y[1] - y[0]) or (x[1] - x[0])
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
+# ∂
 
+# np.diff(u, axis=1)
 def diffu(u):
     for i in range(np.shape(u)[1]-1, 0, -1): # 考虑到右边界数据比左边界多，所以尽可能保留右部数据
         u[:,i] = u[:,i] - u[:,i-1] # i column - i-1 column
     return np.delete(u, 0, axis=1) # 少一列
 
+# np.diff(u, axis=0)
 def diffv(v):
     for i in range(np.shape(v)[0]-1, 0, -1): # 下边界数据比上边界多，尽可能保留下边界数据
         v[i] = v[i] - v[i-1] # i row - i-1 row
