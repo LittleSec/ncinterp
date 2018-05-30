@@ -2,8 +2,9 @@ import numpy as np
 import os
 import pandas as pd
 import time
+import matplotlib.pyplot as plt
 
-ROOTPATH = '/Users/openmac/Downloads/'
+ROOTPATH = '/Users/openmac/Downloads/LittleSec/new nc data/全速度grid'
 RESOLUTION = 0.08 # 2/25 instead of (y[1] - y[0]) or (x[1] - x[0])
 DEPTHLIST = ['0.0m', '8.0m', '15.0m', '30.0m', '50.0m']
 # ∂
@@ -35,12 +36,17 @@ def OkuboWeiss(U, V, diffX, diffY):
       = U'x^2 + V'y^2 - 2U'xV'y + V'x^2 + U'y^2 +2V'xU'y - V'x^2 - U'y^2 + 2V'xU'y
       = U'x^2 + V'y^2 - 2U'xV'y + 4V'xU'y
     '''
-    Ux = diffu(U)/diffX # 0x-1  /  0x0  少一列
-    Vy = diffv(V)/diffY # -1x0  /  num  少一行
-    Vx = diffu(V)/diffX # 0x-1  /  0x0  少一列
-    Uy = diffv(U)/diffY # -1x0  /  num  少一行
+    # Ux = np.delete(np.diff(U, axis=1)/diffX, 0, axis=0)  # 0x-1  /  0x0  少一列
+    # Vy = np.delete(np.diff(V, axis=0)/diffY, 0, axis=1)  # -1x0  /  num  少一行
+    # Vx = np.delete(np.diff(V, axis=1)/diffX, 0, axis=0)  # 0x-1  /  0x0  少一列
+    # Uy = np.delete(np.diff(U, axis=0)/diffY, 0, axis=1) # -1x0  /  num  少一行
 
-    q = Ux[1:]**2 + Vy[:,1:]**2 - 2*Ux[1:]*Vy[:,1:] + 4*Vx[1:]*Uy[:,1:]
+    Ux = np.diff(U, axis=1)/diffX  # 0x-1  /  0x0  少一列
+    Vy = np.diff(V, axis=0)/diffY  # -1x0  /  num  少一行
+    Vx = np.diff(V, axis=1)/diffX  # 0x-1  /  0x0  少一列
+    Uy = np.diff(U, axis=0)/diffY # -1x0  /  num  少一行
+    q = (Ux[1:]-Vy[:,1:])**2 + (Vx[1:]+Uy[:,1:])**2 - (Vx[1:]-Uy[:,1:])**2
+    # q = Ux[1:]**2 + Vy[:,1:]**2 - 2*Ux[1:]*Vy[:,1:] + 4*Vx[1:]*Uy[:,1:]
     return q
 
 '''
@@ -73,11 +79,22 @@ def culAndSaveOWparam(file, srcUpath, srcVpath, tarPath):
     diffX = RESOLUTION * 111e3 * np.cos(np.radians(y))
     diffX = diffX.reshape((diffX.shape[0], 1)) # 转换成列向量, np.transport()转置函数对一维数组不起作用
     diffY = RESOLUTION * 111e3
-    ow = OkuboWeiss(u, v, diffX, diffY) * 1e11
+    ow = OkuboWeiss(u, v, diffX, diffY)
+    print(np.nanmax(ow), np.nanmin(ow))
     # write csv
     pd.DataFrame(ow, columns=x[1:], index=y[1:]).to_csv('/'.join([tarPath, file]), na_rep='NaN')
     
     # convenience to test(plot)
+    # print(np.nanmax(ow), np.nanmin(ow))
+    # ow = np.where(np.isnan(ow), 0, ow)
+    # std = np.nanstd(ow)
+    # mean = np.nanmean(ow)
+    # print(std, mean)
+    # ow = np.where(ow > std, std, ow)
+    # ow = np.where(ow < -std, -std, ow)
+    # plt.imshow(ow, origin='lower', cmap='Spectral')
+    # plt.colorbar()
+    # plt.show()
     # return ow
 
 if __name__ == '__main__':
@@ -87,6 +104,8 @@ if __name__ == '__main__':
     vFolder = 'water_v_grid' # 默认csv文件名数量和名字都一致
     owFolder = 'ow_grid'
 
+    # depth = '0.0m'
+    # culAndSaveOWparam('2014-07-01.csv', '/'.join([uFolder, depth]), '/'.join([vFolder, depth]), 'hjx')
     for depth in DEPTHLIST:
         nowOWpath = '/'.join([owFolder, depth])
         if not os.path.exists(nowOWpath):
