@@ -88,6 +88,15 @@ def datelist(beginDate, endDate):
     date_l = [datetime.strftime(x, '%Y-%m-%d') for x in list(pd.date_range(start=beginDate, end=endDate))]
     return date_l
 
+def delAttr(attr):
+    for depth in DEPTHLIST:
+        for file in os.listdir(depth):
+            if file[-4:] == '.csv':
+                df = pd.read_csv('/'.join([depth, file]))
+                # print(df.columns)
+                if attr in df.columns.values:
+                    df.drop(columns=[attr]).to_csv('/'.join([depth, file]), index=False, na_rep='NaN')
+
 def finddiff(path):
     dateset = set(datelist('20140701', '20160430'))
     fileset = set([file[:-4] for file in os.listdir(path)])
@@ -100,9 +109,9 @@ def attrMergeInTuple(srcFile, srcPath, tarPath):
     src合并到tar
     '''
     dt1 = pd.read_csv('/'.join([srcPath, srcFile]))
-    dt2 = pd.read_csv('/'.join([tarPath, srcFile])).drop(columns=['sla'])
+    dt2 = pd.read_csv('/'.join([tarPath, srcFile]))
     dt2 = pd.merge(dt2, dt1, how='inner', on=['lon', 'lat'])
-    dt2.round(6).to_csv('/'.join([tarPath, srcFile]), index=False, na_rep='NaN')
+    dt2.to_csv('/'.join([tarPath, srcFile]), index=False, na_rep='NaN')
 
 if __name__ == '__main__':
     start = time.clock()
@@ -115,9 +124,15 @@ if __name__ == '__main__':
     #     print("run time: "+str(time.clock()-start)+" s")
     #     start = time.clock()
 
-    srcPath = 'sla_tuple'
+    srcPath = 'ow_tuple'
     for depth in DEPTHLIST:
-        for file in os.listdir(srcPath):
-            attrMergeInTuple(file, srcPath, depth)
+        for file in os.listdir('/'.join([srcPath, depth])):
+            if file[-4:] == '.csv':
+                attrMergeInTuple(file, '/'.join([srcPath, depth]), depth)
         print("run time: "+str(time.clock()-start)+" s")
         start = time.clock()
+
+    # delAttr('ow')
+    # print("run time: "+str(time.clock()-start)+" s")
+    # delAttr('sla')
+    # print("run time: "+str(time.clock()-start)+" s")
