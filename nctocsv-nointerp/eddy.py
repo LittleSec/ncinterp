@@ -27,6 +27,7 @@ def eddy(fileName, sshpath, owpath, scale):
     sshlat = sshcsv[1:, 0]
     srcSSH = np.round(sshcsv[1:, 1:], 6)
     tarSSH = np.where(np.isnan(srcSSH), 0, BLACKGROUND)
+    boundaryList = []
     # 对srcSSH进行遍历
     radius = scale // 2
     '''
@@ -51,8 +52,11 @@ def eddy(fileName, sshpath, owpath, scale):
                 # print(queryExpr)
                 if qdf['ow'].values[0] < 0: # 认为是涡核
                     # tarSSH[i-radius:i+radius+1, j-radius:j+radius+1] = WARMEDDYSCALE
-                    tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'warm')
-                    tarSSH[i][j] = WARMEDDYCENTER
+                    # tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'warm')
+                    # tarSSH[i][j] = WARMEDDYCENTER
+
+                    threshold = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'warm')
+                    boundaryList.append(eddyBoundary(i, j, sshlon, sshlat, threshold, srcSSH, 'warm'))
             elif np.nanmin(srcSSH[i-radius:i+radius+1, j-radius:j+radius+1]) == srcSSH[i][j]:
                 # 当前点和矩阵最值对比是否同，是则对比ow
                 queryExpr = 'lon=={0} and lat=={1}'.format(sshlon[j], sshlat[i])
@@ -62,12 +66,16 @@ def eddy(fileName, sshpath, owpath, scale):
                     continue
                 # print(queryExpr)
                 if qdf['ow'].values[0] < 0: # 认为是涡核
-                    # tarSSH[i-radius:i+radius+1, j-radius:j+radius+1] = WARMEDDYSCALE
-                    tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'cold')
-                    tarSSH[i][j] = COLDEDDYCENTER
-    plt.imshow(tarSSH, origin='lower', cmap='Spectral')
-    plt.colorbar()
-    plt.show()
+                    # tarSSH[i-radius:i+radius+1, j-radius:j+radius+1] = EDDYEDDYSCALE
+                    # tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'cold')
+                    # tarSSH[i][j] = COLDEDDYCENTER
+
+                    threshold = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'cold')
+                    boundaryList.append(eddyBoundary(i, j, sshlon, sshlat, threshold, srcSSH, 'cold'))
+    print(boundaryList)
+    # plt.imshow(tarSSH, origin='lower', cmap='Spectral')
+    # plt.colorbar()
+    # plt.show()
 
 def cmpGreater(a, b):
     return a > b
@@ -75,7 +83,6 @@ def cmpGreater(a, b):
 def cmpLess(a, b):
     return a < b
 
-# 先默认中心为最大值
 def sshthreshold(centerI, centerJ, radius, lonList, latList, srcSSH, tarSSH, eddyType):
     '''
     centerI,J是涡旋的中心在经纬序列中的索引
@@ -180,6 +187,9 @@ def sshthreshold(centerI, centerJ, radius, lonList, latList, srcSSH, tarSSH, edd
         maxThresholdKV = max(thresholdKVlist, key=lambda kv: kv['threshold'] if not np.isnan(kv['threshold']) else np.NINF) ################ 可能有理解偏差
     else:
         maxThresholdKV = min(thresholdKVlist, key=lambda kv: kv['threshold'] if not np.isnan(kv['threshold']) else np.PINF) ################ 可能有理解偏差        
+    
+    return maxThresholdKV['threshold']
+
     # print('center', centerI, centerJ ,',max:', maxThresholdKV)
     for i in range(centerI-maxThresholdKV['iscale'], centerI+maxThresholdKV['iscale']+1):
         for j in range(centerJ-maxThresholdKV['jscale'], centerJ+maxThresholdKV['jscale']+1):
@@ -192,6 +202,131 @@ def sshthreshold(centerI, centerJ, radius, lonList, latList, srcSSH, tarSSH, edd
     # plt.colorbar()
     # plt.show()
     return tarSSH
+
+def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType):
+    '''
+    在上下左右方向上判断阈值后记录的范围ij实际上是不对的，如果当前遍历方向是i，那么j的方向是根据i计算而来，然而并非四个方向的变化速度是一致的，以下图为例：
+        3
+        2(+)
+        3
+        3.5
+        4
+        4.5
+        5
+        5.5
+    *   6   5   4   3(+)   3.5   4.5
+        *
+    假设此时通过右方向得出是3为阈值，而3的i方向方位是3，此时j方向也默认是3，
+    然而从图示可以看出，j方向的范围应该是6，也就是说j方向的范围缩小了。
+    若是范围扩大了, 上述例子中返回6，那么i方向将会有更多的点进入范围内。
+    干脆记录八个方向上阈值的点，然后做连线。
+    json格式如下：
+    [
+        {
+            "points": [[], [], [], [], [], [], ...], # 各个点，前段使用线段生成器就能轻松绘制线条，还可以设置张力更加平滑
+            "center": [],
+            "type": "warm"
+        },
+        {
+            "points": [],
+            "center": [],            
+            "type": "cold"
+        },
+        ...
+    ]
+    而返回值是一个元素，所以调用者要做好添加工作
+    6 2 7
+    1   3
+    5 4 8
+    '''
+    pointsList = []
+
+    if eddyType == 'warm':
+        cmp = cmpLess
+    else:
+        cmp = cmpGreater
+
+    j = centerJ
+    while j > 0: # 左1
+        if np.isnan(srcSSH[centerI][j-1]):
+            break
+        if cmp(srcSSH[centerI][j-1], threshold):
+            break
+        j -= 1
+    pointsList.append([lonList[j], latList[centerI]])
+
+    i = centerI
+    j = centerJ
+    while i > 0 and j > 0: # 左上6
+        if np.isnan(srcSSH[i-1][j-1]):
+            break
+        if cmp(srcSSH[i-1][j-1], threshold):
+            break
+        i -= 1
+        j -= 1
+    pointsList.append([lonList[j], latList[i]])
+
+    i = centerI
+    while i > 0: # 上2
+        if np.isnan(srcSSH[i-1][centerJ]):
+            break
+        if cmp(srcSSH[i-1][centerJ], threshold) :
+            break
+        i -= 1
+    pointsList.append([lonList[centerJ], latList[i]])
+
+    i = centerI
+    j = centerJ
+    while j < len(lonList)-1 and i > 0: # 右上7
+        if np.isnan(srcSSH[i-1][j+1]):
+            break
+        if cmp(srcSSH[i-1][j+1], threshold):
+            break
+        i -= 1
+        j += 1
+    pointsList.append([lonList[j], latList[i]])
+
+    j = centerJ
+    while j < len(lonList)-1: # 右3
+        if np.isnan(srcSSH[centerI][j+1]):
+            break
+        if cmp(srcSSH[centerI][j+1], threshold): 
+            break
+        j += 1
+    pointsList.append([lonList[j], latList[centerI]])
+
+    i = centerI
+    j = centerJ
+    while j < len(lonList)-1 and i < len(latList)-1: # 右下8
+        if np.isnan(srcSSH[i+1][j+1]):
+            break
+        if cmp(srcSSH[i+1][j+1], threshold):
+            break
+        i += 1
+        j += 1
+    pointsList.append([lonList[j], latList[i]])
+
+    i = centerI
+    while i < len(latList)-1: # 下4
+        if np.isnan(srcSSH[i+1][centerJ]):
+            break
+        if cmp(srcSSH[i+1][centerJ], threshold):
+            break
+        i += 1
+    pointsList.append([lonList[centerJ], latList[i]])
+    
+    i = centerI
+    j = centerJ
+    while i < len(latList)-1 and j > 0: # 左下5
+        if np.isnan(srcSSH[i+1][j-1]):
+            break
+        if cmp(srcSSH[i+1][j-1], threshold):
+            break
+        i += 1
+        j -= 1
+    pointsList.append([lonList[j], latList[i]])
+
+    return {"points": pointsList, "center": [lonList[j], latList[i]], "type": eddyType}
 
 if __name__ == '__main__':
     start = time.clock()
