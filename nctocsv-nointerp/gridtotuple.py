@@ -53,6 +53,7 @@ def dealAattrG2T(attr):
     else:
         srcPathList = [attr + '_grid', ]
 
+    start = time.clock()    
     for srcPath in srcPathList:
         tarPath = srcPath.replace('_grid', '_tuple')
         if not os.path.exists(tarPath):
@@ -60,6 +61,8 @@ def dealAattrG2T(attr):
         for file in os.listdir(srcPath):
             if file[-4:] == '.csv':
                 grid2Tuple(file, srcPath, tarPath, attr)
+        print("run time: "+str(time.clock()-start)+" s")
+        start = time.clock()
 
 if __name__ == '__main__':
     start = time.clock()
