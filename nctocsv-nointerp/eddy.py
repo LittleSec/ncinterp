@@ -28,6 +28,7 @@ def eddy(fileName, sshpath, owpath, scale):
     srcSSH = np.round(sshcsv[1:, 1:], 6)
     tarSSH = np.where(np.isnan(srcSSH), 0, BLACKGROUND)
     boundaryList = []
+    owThreshold = 0.2 # 0.2 * std
     # 对srcSSH进行遍历
     radius = scale // 2
     '''
@@ -38,6 +39,7 @@ def eddy(fileName, sshpath, owpath, scale):
     但是要考虑到一点是[len-1][len-1]如果按照下面的逻辑则该点会被判断为最大和最小值。
     所以在此依然空出四边的边界，这样也减少迭代次数。
     '''
+    df1 = pd.read_csv('/'.join([owpath, fileName])).round(6)
     for i in range(radius, len(sshlat)-radius):
         for j in range(radius, len(sshlon)-radius):
             if np.isnan(srcSSH[i][j]):
@@ -45,12 +47,11 @@ def eddy(fileName, sshpath, owpath, scale):
             if np.nanmax(srcSSH[i-radius:i+radius+1, j-radius:j+radius+1]) == srcSSH[i][j]:
                 # 当前点和矩阵最值对比是否同，是则对比ow
                 queryExpr = 'lon=={0} and lat=={1}'.format(sshlon[j], sshlat[i])
-                df1 = pd.read_csv('/'.join([owpath, fileName])).round(6)
                 qdf = df1.query(queryExpr)
                 if qdf.index.empty: # 该点没有ow
                     continue
                 # print(queryExpr)
-                if qdf['ow'].values[0] < 0: # 认为是涡核
+                if qdf['ow'].values[0] < owThreshold * np.nanstd(df1['ow']): # 认为是涡核
                     # tarSSH[i-radius:i+radius+1, j-radius:j+radius+1] = WARMEDDYSCALE
                     # tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'warm')
                     # tarSSH[i][j] = WARMEDDYCENTER
@@ -60,12 +61,11 @@ def eddy(fileName, sshpath, owpath, scale):
             elif np.nanmin(srcSSH[i-radius:i+radius+1, j-radius:j+radius+1]) == srcSSH[i][j]:
                 # 当前点和矩阵最值对比是否同，是则对比ow
                 queryExpr = 'lon=={0} and lat=={1}'.format(sshlon[j], sshlat[i])
-                df1 = pd.read_csv('/'.join([owpath, fileName])).round(6)
                 qdf = df1.query(queryExpr)
                 if qdf.index.empty: # 该点没有ow
                     continue
                 # print(queryExpr)
-                if qdf['ow'].values[0] < 0: # 认为是涡核
+                if qdf['ow'].values[0] < owThreshold * np.nanstd(df1['ow']) : # 认为是涡核
                     # tarSSH[i-radius:i+radius+1, j-radius:j+radius+1] = EDDYEDDYSCALE
                     # tarSSH = sshthreshold(i, j, radius, sshlon, sshlat, srcSSH, tarSSH, 'cold')
                     # tarSSH[i][j] = COLDEDDYCENTER
@@ -189,7 +189,7 @@ def sshthreshold(centerI, centerJ, radius, lonList, latList, srcSSH, tarSSH, edd
         maxThresholdKV = min(thresholdKVlist, key=lambda kv: kv['threshold'] if not np.isnan(kv['threshold']) else np.PINF) ################ 可能有理解偏差        
     
     return maxThresholdKV['threshold']
-
+'''
     # print('center', centerI, centerJ ,',max:', maxThresholdKV)
     for i in range(centerI-maxThresholdKV['iscale'], centerI+maxThresholdKV['iscale']+1):
         for j in range(centerJ-maxThresholdKV['jscale'], centerJ+maxThresholdKV['jscale']+1):
@@ -202,6 +202,7 @@ def sshthreshold(centerI, centerJ, radius, lonList, latList, srcSSH, tarSSH, edd
     # plt.colorbar()
     # plt.show()
     return tarSSH
+'''
 
 def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType):
     '''
@@ -250,7 +251,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while j > 0: # 左1
         if np.isnan(srcSSH[centerI][j-1]):
             break
-        if cmp(srcSSH[centerI][j-1], threshold):
+        if cmp(srcSSH[centerI][j-1], threshold) or srcSSH[centerI][j-1] == threshold:
             break
         j -= 1
     pointsList.append([lonList[j], latList[centerI]])
@@ -260,7 +261,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while i > 0 and j > 0: # 左上6
         if np.isnan(srcSSH[i-1][j-1]):
             break
-        if cmp(srcSSH[i-1][j-1], threshold):
+        if cmp(srcSSH[i-1][j-1], threshold) or srcSSH[i-1][j-1] == threshold:
             break
         i -= 1
         j -= 1
@@ -270,7 +271,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while i > 0: # 上2
         if np.isnan(srcSSH[i-1][centerJ]):
             break
-        if cmp(srcSSH[i-1][centerJ], threshold) :
+        if cmp(srcSSH[i-1][centerJ], threshold) or srcSSH[i-1][centerJ] == threshold:
             break
         i -= 1
     pointsList.append([lonList[centerJ], latList[i]])
@@ -280,7 +281,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while j < len(lonList)-1 and i > 0: # 右上7
         if np.isnan(srcSSH[i-1][j+1]):
             break
-        if cmp(srcSSH[i-1][j+1], threshold):
+        if cmp(srcSSH[i-1][j+1], threshold) or srcSSH[i-1][j+1] == threshold:
             break
         i -= 1
         j += 1
@@ -290,7 +291,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while j < len(lonList)-1: # 右3
         if np.isnan(srcSSH[centerI][j+1]):
             break
-        if cmp(srcSSH[centerI][j+1], threshold): 
+        if cmp(srcSSH[centerI][j+1], threshold) or srcSSH[centerI][j+1] == threshold: 
             break
         j += 1
     pointsList.append([lonList[j], latList[centerI]])
@@ -300,7 +301,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while j < len(lonList)-1 and i < len(latList)-1: # 右下8
         if np.isnan(srcSSH[i+1][j+1]):
             break
-        if cmp(srcSSH[i+1][j+1], threshold):
+        if cmp(srcSSH[i+1][j+1], threshold) or srcSSH[i+1][j+1] == threshold:
             break
         i += 1
         j += 1
@@ -310,7 +311,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while i < len(latList)-1: # 下4
         if np.isnan(srcSSH[i+1][centerJ]):
             break
-        if cmp(srcSSH[i+1][centerJ], threshold):
+        if cmp(srcSSH[i+1][centerJ], threshold) or srcSSH[i+1][centerJ] == threshold:
             break
         i += 1
     pointsList.append([lonList[centerJ], latList[i]])
@@ -320,7 +321,7 @@ def eddyBoundary(centerI, centerJ, lonList, latList, threshold, srcSSH, eddyType
     while i < len(latList)-1 and j > 0: # 左下5
         if np.isnan(srcSSH[i+1][j-1]):
             break
-        if cmp(srcSSH[i+1][j-1], threshold):
+        if cmp(srcSSH[i+1][j-1], threshold) or srcSSH[i+1][j-1] == threshold:
             break
         i += 1
         j -= 1
