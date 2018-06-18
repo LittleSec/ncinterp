@@ -65,7 +65,7 @@ if __name__ == '__main__':
     #         for file in os.listdir(srcPath):
     #             sparseResolution(file, srcPath, tarPath)
     #     print("run time: "+str(time.clock()-start)+" s")
-        
+
     # 计算quiver终点
     for depth in DEPTHLIST:
         if os.path.isdir(depth):

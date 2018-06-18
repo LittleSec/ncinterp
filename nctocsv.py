@@ -178,12 +178,6 @@ class NcFile:
             else:
                 var = self.f.variables[key]
                 observedValue = var[:]
-                # observedValue = var.data.astype(float)
-                # missingValue = np.float(var.missing_value)
-                # if not np.isnan(missingValue):
-                #     observedValue[observedValue == missingValue] = np.nan
-                # if ('add_offset' in dir(var) and 'scale_factor' in dir(var)):  # 源数据经过处理，例如sst2960-2017.nc
-                #     observedValue = var.data.astype(float) * var.scale_factor + var.add_offset
                 self.observedValue[key] = observedValue
 
     def toCSVgrid(self):
@@ -215,15 +209,6 @@ class NcFile:
                         value[i][0], columns=self.x, index=self.y).to_csv(
                             fileName, na_rep='NaN')
 
-
-# 尝试多线程
-def func(filename):
-    start = time.clock()
-    nc = NcFile(filename)
-    nc.toCSVgrid()
-    print("run time: " + str(time.clock() - start) + " s")
-
-
 if __name__ == '__main__':
     start = time.clock()
     os.chdir(ROOTPATH)
@@ -232,15 +217,8 @@ if __name__ == '__main__':
     # print("run time: "+str(time.clock()-start)+" s")
 
     fileList = os.listdir()
-    # p = Pool(len(fileList))
     for file in fileList:
         if file[-3:] == '.nc':
-
-            #         p.apply_async(func, (file,))
-            # p.close()
-            # p.join()
-            # print("run time: "+str(time.clock()-start)+" s")
-
             print("now: " + file)
             nc = NcFile(file)
             nc.toCSVgrid()
