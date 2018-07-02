@@ -37,3 +37,7 @@
 ## 五、需要用到的测试文件
 1. 为了repo的干净度，已将nc文件存入[百度云盘](https://pan.baidu.com/s/1J6yRH381XUPwyD0lsybliQ)，可根据文件名下载。
 2. 若发现链接失效或链接未更新，请联系给我发[邮件](kuaiqleqren@163.com)
+
+## 附录
+1. 根据经纬度截取nc文件中的数据命令：```ncks -v sst -d lat,start_lat,end_lat -d lon,start_lon,end_lon src.nc tar_sub.nc```
+2. 根据经纬度截取shp(geojson)数据的命令:```ogr2ogr -wrapdateline -clipdst start_lon start_lat end_lon end_lat tar.shp src.shp ```
